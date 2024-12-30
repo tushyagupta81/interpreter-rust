@@ -1,30 +1,34 @@
 use crate::{
-    expr::{Expr, LiteralValue},
+    environments::Environments,
     stmt::Stmt,
 };
 use std::error::Error;
 
-pub struct Interpreter {}
+pub struct Interpreter {
+    environments: Environments,
+}
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self {}
-    }
-
-    #[allow(dead_code)]
-    pub fn interpret_expr(&mut self, expr: Expr) -> Result<LiteralValue, Box<dyn Error>> {
-        expr.evaluvate()
+        Self {
+            environments: Environments::new(),
+        }
     }
 
     pub fn interpret(&mut self, stmts: Vec<Stmt>) -> Result<(), Box<dyn Error>> {
         for stmt in stmts {
             match stmt {
                 Stmt::Expression { expression } => {
-                    expression.evaluvate()?;
+                    expression.evaluvate(&self.environments)?;
                 }
                 Stmt::Print { expression } => {
-                    let val = expression.evaluvate()?;
+                    let val = expression.evaluvate(&self.environments)?;
                     println!("{}", val.to_string());
+                }
+                Stmt::Var { name, initializer } => {
+                    let val = initializer.evaluvate(&self.environments)?;
+
+                    self.environments.define(name.lexeme, val);
                 }
             };
         }

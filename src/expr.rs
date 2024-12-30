@@ -1,5 +1,5 @@
 use super::scanner::Token;
-use crate::{scanner, TokenType};
+use crate::{environments::Environments, scanner, TokenType};
 use std::error::Error;
 
 fn unwrap_as_f32(literal: Option<scanner::LiteralValue>) -> f32 {
@@ -107,6 +107,9 @@ pub enum Expr {
         operator: Token,
         right: Box<Expr>,
     },
+    Variable {
+        name: Token,
+    },
 }
 
 #[allow(dead_code)]
@@ -133,15 +136,18 @@ impl Expr {
                 let right_str = (*right).to_string();
                 format!("({} {})", op_str, right_str)
             }
+            Expr::Variable { name } => {
+                format!("(var {:?})", name)
+            }
         }
     }
 
-    pub fn evaluvate(&self) -> Result<LiteralValue, Box<dyn Error>> {
+    pub fn evaluvate(&self, env: &Environments) -> Result<LiteralValue, Box<dyn Error>> {
         let res = match self {
             Expr::Literal { literal } => literal.clone(),
-            Expr::Grouping { expression } => expression.evaluvate()?,
+            Expr::Grouping { expression } => expression.evaluvate(env)?,
             Expr::Unary { operator, right } => {
-                let right = &right.evaluvate()?;
+                let right = &right.evaluvate(env)?;
                 match (right, &operator.token_type) {
                     (LiteralValue::Number(n), TokenType::Minus) => LiteralValue::Number(-n),
                     (any, TokenType::Bang) => any.is_falsy(),
@@ -160,8 +166,8 @@ impl Expr {
                 operator,
                 right,
             } => {
-                let left = &left.evaluvate()?;
-                let right = &right.evaluvate()?;
+                let left = &left.evaluvate(env)?;
+                let right = &right.evaluvate(env)?;
                 match (left, right, &operator.token_type) {
                     (LiteralValue::Number(a), LiteralValue::Number(b), TokenType::Greater) => {
                         LiteralValue::from_bool(a > b)
@@ -228,6 +234,10 @@ impl Expr {
                     }
                 }
             }
+            Expr::Variable { name } => match env.get(&name.lexeme) {
+                Some(val) => val.clone(),
+                None => return Err(format!("Variable '{}' is not defined", name.lexeme).into()),
+            },
         };
         Ok(res)
     }

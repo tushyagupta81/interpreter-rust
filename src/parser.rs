@@ -20,10 +20,13 @@ impl Parser {
         let mut errors = vec![];
 
         while !self.is_at_end() {
-            let stmt = self.statement();
+            let stmt = self.declaration();
             match stmt {
                 Ok(s) => stmts.push(s),
-                Err(e) => errors.push(e),
+                Err(e) => {
+                    errors.push(e);
+                    self.synchronize();
+                }
             }
         }
 
@@ -36,6 +39,36 @@ impl Parser {
             }
             Err(err.into())
         }
+    }
+
+    fn declaration(&mut self) -> Result<Stmt, Box<dyn Error>> {
+        if self.match_token(TokenType::Var) {
+            self.var_declaration()
+        } else {
+            self.statement()
+        }
+    }
+
+    fn var_declaration(&mut self) -> Result<Stmt, Box<dyn Error>> {
+        let token = self.consume(TokenType::Identifier, "Expect variable name.")?;
+
+        let initializer = if self.match_token(Equal) {
+            self.expression()?
+        } else {
+            Expr::Literal {
+                literal: LiteralValue::Nil,
+            }
+        };
+
+        self.consume(
+            TokenType::Semicolon,
+            "Expected ';' after variable declaration",
+        )?;
+
+        Ok(Stmt::Var {
+            name: token,
+            initializer,
+        })
     }
 
     fn statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
@@ -155,16 +188,24 @@ impl Parser {
                 };
                 self.advance();
             }
+            Identifier => {
+                result = Expr::Variable {
+                    name: token.clone(),
+                };
+                self.advance();
+            }
+
             _ => return Err(format!("{:?} is not a primary", self.peek()).into()),
         }
         Ok(result)
     }
 
-    fn consume(&mut self, token_type: TokenType, msg: &str) -> Result<(), Box<dyn Error>> {
+    fn consume(&mut self, token_type: TokenType, msg: &str) -> Result<Token, Box<dyn Error>> {
         let token = self.peek();
         if token.token_type == token_type {
             self.advance();
-            Ok(())
+            let token = self.previous();
+            Ok(token.clone())
         } else {
             Err(msg.to_string().into())
         }
@@ -209,7 +250,6 @@ impl Parser {
         self.previous()
     }
 
-    #[allow(dead_code)]
     fn synchronize(&mut self) {
         self.advance();
 
@@ -221,6 +261,7 @@ impl Parser {
                 Class | Func | Var | For | If | While | Print | Return => return,
                 _ => (),
             }
+            self.advance();
         }
     }
 }
