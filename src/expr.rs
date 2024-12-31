@@ -110,6 +110,10 @@ pub enum Expr {
     Variable {
         name: Token,
     },
+    Assign {
+        name: Token,
+        value: Box<Expr>,
+    },
 }
 
 #[allow(dead_code)]
@@ -139,11 +143,27 @@ impl Expr {
             Expr::Variable { name } => {
                 format!("(var {:?})", name)
             }
+            Expr::Assign { name, value } => {
+                format!("(assign {:?} {:?})", name, value)
+            }
         }
     }
 
-    pub fn evaluvate(&self, env: &Environments) -> Result<LiteralValue, Box<dyn Error>> {
+    pub fn evaluvate(&self, env: &mut Environments) -> Result<LiteralValue, Box<dyn Error>> {
         let res = match self {
+            Expr::Variable { name } => match env.get(&name.lexeme) {
+                Some(val) => val.clone(),
+                None => return Err(format!("Variable '{}' is not defined", name.lexeme).into()),
+            },
+            Expr::Assign { name, value } => match env.get(&name.lexeme) {
+                Some(_) => {
+                    let new_val = value.evaluvate(env)?;
+                    env.assign(name.lexeme.clone(), new_val)?
+                }
+                None => {
+                    return Err(format!("Variable '{}' has not been declared", name.lexeme).into())
+                }
+            },
             Expr::Literal { literal } => literal.clone(),
             Expr::Grouping { expression } => expression.evaluvate(env)?,
             Expr::Unary { operator, right } => {
@@ -234,10 +254,6 @@ impl Expr {
                     }
                 }
             }
-            Expr::Variable { name } => match env.get(&name.lexeme) {
-                Some(val) => val.clone(),
-                None => return Err(format!("Variable '{}' is not defined", name.lexeme).into()),
-            },
         };
         Ok(res)
     }

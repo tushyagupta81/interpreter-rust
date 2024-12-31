@@ -1,6 +1,6 @@
 use crate::{
     environments::Environments,
-    stmt::Stmt,
+    stmt::Stmt, expr::LiteralValue,
 };
 use std::error::Error;
 
@@ -15,23 +15,23 @@ impl Interpreter {
         }
     }
 
-    pub fn interpret(&mut self, stmts: Vec<Stmt>) -> Result<(), Box<dyn Error>> {
+    pub fn interpret(&mut self, stmts: Vec<Stmt>) -> Result<Option<LiteralValue>, Box<dyn Error>> {
         for stmt in stmts {
             match stmt {
                 Stmt::Expression { expression } => {
-                    expression.evaluvate(&self.environments)?;
+                    expression.evaluvate(&mut self.environments)?;
                 }
                 Stmt::Print { expression } => {
-                    let val = expression.evaluvate(&self.environments)?;
+                    let val = expression.evaluvate(&mut self.environments)?;
                     println!("{}", val.to_string());
                 }
                 Stmt::Var { name, initializer } => {
-                    let val = initializer.evaluvate(&self.environments)?;
+                    let val = initializer.evaluvate(&mut self.environments)?;
 
                     self.environments.define(name.lexeme, val);
                 }
             };
         }
-        Ok(())
+        Ok(None)
     }
 }
