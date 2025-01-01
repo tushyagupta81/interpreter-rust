@@ -74,9 +74,45 @@ impl Parser {
     fn statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
         if self.match_token(Print) {
             self.print_expression()
+        } else if self.match_token(LeftBrace) {
+            self.block()
+        } else if self.match_token(If) {
+            self.if_statement()
         } else {
             self.expression_statement()
         }
+    }
+
+    fn if_statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
+        self.consume(LeftParen, "Expected '(' after 'if'")?;
+        let predicate = self.expression()?;
+        self.consume(RightParen, "Expected ')' after if-predicate")?;
+        let then_branch = Box::from(self.statement()?);
+        let else_branch = if self.match_token(Else) {
+            let stmt = self.statement()?;
+            Some(Box::from(stmt))
+        } else {
+            None
+        };
+
+        Ok(Stmt::IfStmt {
+            predicate,
+            then_branch,
+            else_branch,
+        })
+    }
+
+    fn block(&mut self) -> Result<Stmt, Box<dyn Error>> {
+        let mut stmts = vec![];
+
+        while !self.check(RightBrace) && !self.is_at_end() {
+            let stmt = self.declaration()?;
+            stmts.push(stmt);
+        }
+
+        self.consume(RightBrace, "Expect '}' after block.")?;
+
+        Ok(Stmt::Block { stmts })
     }
 
     fn print_expression(&mut self) -> Result<Stmt, Box<dyn Error>> {
@@ -242,6 +278,14 @@ impl Parser {
 
     fn peek(&mut self) -> &Token {
         &self.tokens[self.current]
+    }
+
+    fn check(&mut self, token_type: TokenType) -> bool {
+        if self.is_at_end() {
+            false
+        } else {
+            self.peek().token_type == token_type
+        }
     }
 
     fn match_token(&mut self, token: TokenType) -> bool {

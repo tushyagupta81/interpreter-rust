@@ -1,2 +1,7 @@
-print 5 + 10;
-print 3 + 2;
+var a = 10;
+if (a== 10) {
+  var b = 10;
+  print "a is in fact equals to 10";
+} else {
+  print "This is the else block";
+}

@@ -32,7 +32,7 @@ impl LiteralValue {
     pub fn to_string(&self) -> String {
         match self {
             LiteralValue::Number(n) => n.to_string(),
-            LiteralValue::StringValue(s) => s.clone(),
+            LiteralValue::StringValue(s) => format!("\"{}\"", s),
             LiteralValue::True => "true".to_string(),
             LiteralValue::False => "false".to_string(),
             LiteralValue::Nil => "nil".to_string(),
@@ -78,6 +78,28 @@ impl LiteralValue {
             LiteralValue::False => LiteralValue::True,
             LiteralValue::True => LiteralValue::False,
             LiteralValue::Nil => LiteralValue::True,
+        }
+    }
+
+    pub fn is_truthy(&self) -> LiteralValue {
+        match self {
+            LiteralValue::Number(e) => {
+                if *e == 0. {
+                    LiteralValue::False
+                } else {
+                    LiteralValue::True
+                }
+            }
+            LiteralValue::StringValue(s) => {
+                if s.is_empty() {
+                    LiteralValue::False
+                } else {
+                    LiteralValue::True
+                }
+            }
+            LiteralValue::True => LiteralValue::True,
+            LiteralValue::False => LiteralValue::False,
+            LiteralValue::Nil => LiteralValue::False,
         }
     }
 
