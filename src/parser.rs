@@ -80,9 +80,68 @@ impl Parser {
             self.if_statement()
         } else if self.match_token(While) {
             self.while_statement()
+        } else if self.match_token(For) {
+            self.for_statement()
         } else {
             self.expression_statement()
         }
+    }
+
+    fn for_statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
+        self.consume(LeftParen, "Expect '(' after 'for'.")?;
+        let initializer = if self.match_token(Semicolon) {
+            None
+        } else if self.match_token(Var) {
+            Some(self.var_declaration()?)
+        } else {
+            Some(self.expression_statement()?)
+        };
+
+        let cond = if !self.check(Semicolon) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(Semicolon, "Expect ';' after loop condition.")?;
+
+        let increment = if !self.check(RightParen) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
+        self.consume(RightParen, "Expect ')' after for clauses.")?;
+
+        let body = if let Some(expr) = increment {
+            let stmts = vec![
+                Box::from(self.statement()?),
+                Box::from(Stmt::Expression { expression: expr }),
+            ];
+            Stmt::Block { stmts }
+        } else {
+            self.statement()?
+        };
+
+        let cond = if cond.is_none() {
+            Expr::Literal {
+                literal: LiteralValue::True,
+            }
+        } else {
+            cond.unwrap()
+        };
+
+        let mut body_while = Stmt::WhileLoop {
+            cond,
+            body: Box::from(body),
+        };
+
+        if let Some(expr) = initializer {
+            body_while = Stmt::Block {
+                stmts: vec![Box::from(expr), Box::from(body_while)],
+            };
+        }
+
+        Ok(body_while)
     }
 
     fn while_statement(&mut self) -> Result<Stmt, Box<dyn Error>> {

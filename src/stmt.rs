@@ -2,6 +2,7 @@ use crate::expr::Expr;
 use crate::scanner::Token;
 
 #[derive(Debug)]
+#[allow(clippy::vec_box)]
 pub enum Stmt {
     Expression {
         expression: Expr,
