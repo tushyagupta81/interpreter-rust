@@ -16,6 +16,9 @@ impl Interpreter {
     pub fn interpret(&mut self, stmts: Vec<Stmt>) -> Result<Option<LiteralValue>, Box<dyn Error>> {
         for stmt in stmts {
             match stmt {
+                Stmt::WhileLoop { cond, body } => {
+                    todo!()
+                }
                 Stmt::Expression { expression } => {
                     expression.evaluvate(
                         Rc::get_mut(&mut self.environments)
@@ -51,7 +54,7 @@ impl Interpreter {
 
                     block_res?;
                 }
-                Stmt::IfStmt {
+                Stmt::IfElse {
                     predicate,
                     then_branch,
                     else_branch,

@@ -5,3 +5,11 @@ if (a== 10) {
 } else {
   print "This is the else block";
 }
+
+if (a==1 or 1==1) {
+  print "Or works";
+}
+
+if (a==10 and 1==1) {
+  print "and works";
+}

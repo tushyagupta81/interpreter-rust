@@ -15,7 +15,7 @@ impl Parser {
         Self { tokens, current: 0 }
     }
 
-    pub fn parse(&mut self) -> Result<Vec<Stmt>, Box<dyn Error>> {
+    pub fn parse(&mut self) -> Result<Vec<&Stmt>, Box<dyn Error>> {
         let mut stmts = vec![];
         let mut errors = vec![];
 
@@ -78,9 +78,20 @@ impl Parser {
             self.block()
         } else if self.match_token(If) {
             self.if_statement()
+        } else if self.match_token(While) {
+            self.while_statement()
         } else {
             self.expression_statement()
         }
+    }
+
+    fn while_statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
+        self.consume(LeftParen, "Expect '(' after 'while'.");
+        let cond = self.expression()?;
+        self.consume(RightParen, "Expect ')' after condition.");
+        let body = Box::from(self.statement()?);
+
+        Ok(Stmt::WhileLoop { cond, body })
     }
 
     fn if_statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
@@ -95,7 +106,7 @@ impl Parser {
             None
         };
 
-        Ok(Stmt::IfStmt {
+        Ok(Stmt::IfElse {
             predicate,
             then_branch,
             else_branch,
@@ -132,7 +143,7 @@ impl Parser {
     }
 
     fn assignment(&mut self) -> Result<Expr, Box<dyn Error>> {
-        let lhs_expr = self.equality()?;
+        let lhs_expr = self.or()?;
 
         if self.match_token(Equal) {
             let _eq = self.previous();
@@ -148,6 +159,36 @@ impl Parser {
                     return Err("Invalid assignment target".into());
                 }
             }
+        }
+        Ok(lhs_expr)
+    }
+
+    fn or(&mut self) -> Result<Expr, Box<dyn Error>> {
+        let lhs_expr = self.and()?;
+
+        if self.match_token(Or) {
+            let op = self.previous().clone();
+            let rhs_expr = self.and()?;
+            return Ok(Expr::Logical {
+                left: Box::from(lhs_expr),
+                operator: op,
+                right: Box::from(rhs_expr),
+            });
+        }
+        Ok(lhs_expr)
+    }
+
+    fn and(&mut self) -> Result<Expr, Box<dyn Error>> {
+        let lhs_expr = self.equality()?;
+
+        if self.match_token(And) {
+            let op = self.previous().clone();
+            let rhs_expr = self.equality()?;
+            return Ok(Expr::Logical {
+                left: Box::from(lhs_expr),
+                operator: op,
+                right: Box::from(rhs_expr),
+            });
         }
         Ok(lhs_expr)
     }

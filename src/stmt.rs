@@ -16,15 +16,18 @@ pub enum Stmt {
     Block {
         stmts: Vec<Stmt>,
     },
-    IfStmt {
+    IfElse {
         predicate: Expr,
         then_branch: Box<Stmt>,
         else_branch: Option<Box<Stmt>>,
     },
+    WhileLoop {
+        cond: Expr,
+        body: Box<Stmt>,
+    },
 }
 
-#[allow(clippy::inherent_to_string)]
-#[allow(dead_code)]
+#[allow(clippy::inherent_to_string,dead_code,unused_variables)]
 impl Stmt {
     pub fn to_string(&self) -> String {
         match self {
@@ -38,7 +41,16 @@ impl Stmt {
                 .iter()
                 .map(|stmt| stmt.to_string())
                 .collect::<String>(),
-            Stmt::IfStmt { predicate, then_branch, else_branch } => todo!()
+            Stmt::IfElse {
+                predicate,
+                then_branch,
+                else_branch,
+            } => {
+                todo!()
+            }
+            Stmt::WhileLoop { cond, body } => {
+                todo!()
+            }
         }
     }
 }

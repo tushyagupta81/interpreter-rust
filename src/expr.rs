@@ -119,6 +119,11 @@ pub enum Expr {
         operator: Token,
         right: Box<Expr>,
     },
+    Logical {
+        left: Box<Expr>,
+        operator: Token,
+        right: Box<Expr>,
+    },
     Grouping {
         expression: Box<Expr>,
     },
@@ -168,6 +173,18 @@ impl Expr {
             Expr::Assign { name, value } => {
                 format!("(assign {:?} {:?})", name, value)
             }
+            Expr::Logical {
+                left,
+                operator,
+                right,
+            } => {
+                format!(
+                    "({} {} {})",
+                    operator.token_type.to_string(),
+                    left.to_string(),
+                    right.to_string()
+                )
+            }
         }
     }
 
@@ -186,6 +203,23 @@ impl Expr {
                     return Err(format!("Variable '{}' has not been declared", name.lexeme).into())
                 }
             },
+            Expr::Logical {
+                left,
+                operator,
+                right,
+            } => {
+                let lhs_expr = left.evaluvate(env)?;
+
+                if operator.token_type == TokenType::Or {
+                    if lhs_expr.is_truthy() == LiteralValue::True {
+                        return Ok(lhs_expr);
+                    }
+                } else if lhs_expr.is_falsy() == LiteralValue::True {
+                    return Ok(lhs_expr);
+                }
+                let rhs_expr = right.evaluvate(env)?;
+                return Ok(rhs_expr);
+            }
             Expr::Literal { literal } => literal.clone(),
             Expr::Grouping { expression } => expression.evaluvate(env)?,
             Expr::Unary { operator, right } => {
