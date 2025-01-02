@@ -15,7 +15,7 @@ impl Parser {
         Self { tokens, current: 0 }
     }
 
-    pub fn parse(&mut self) -> Result<Vec<&Stmt>, Box<dyn Error>> {
+    pub fn parse(&mut self) -> Result<Vec<Stmt>, Box<dyn Error>> {
         let mut stmts = vec![];
         let mut errors = vec![];
 
@@ -86,9 +86,9 @@ impl Parser {
     }
 
     fn while_statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
-        self.consume(LeftParen, "Expect '(' after 'while'.");
+        self.consume(LeftParen, "Expect '(' after 'while'.")?;
         let cond = self.expression()?;
-        self.consume(RightParen, "Expect ')' after condition.");
+        self.consume(RightParen, "Expect ')' after condition.")?;
         let body = Box::from(self.statement()?);
 
         Ok(Stmt::WhileLoop { cond, body })
@@ -118,7 +118,7 @@ impl Parser {
 
         while !self.check(RightBrace) && !self.is_at_end() {
             let stmt = self.declaration()?;
-            stmts.push(stmt);
+            stmts.push(Box::from(stmt));
         }
 
         self.consume(RightBrace, "Expect '}' after block.")?;

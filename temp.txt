@@ -1,15 +1,5 @@
-var a = 10;
-if (a== 10) {
-  var b = 10;
-  print "a is in fact equals to 10";
-} else {
-  print "This is the else block";
-}
-
-if (a==1 or 1==1) {
-  print "Or works";
-}
-
-if (a==10 and 1==1) {
-  print "and works";
+var a=10;
+while (a>0) {
+  print a;
+  a = a-1;
 }

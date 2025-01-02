@@ -30,7 +30,7 @@ fn run(interpreter: &mut Interpreter, contents: &str) -> Result<(), Box<dyn Erro
     let mut parser = Parser::new(tokens);
 
     let stmts = parser.parse()?;
-    interpreter.interpret(stmts)?;
+    interpreter.interpret(stmts.iter().collect())?;
 
     Ok(())
 }

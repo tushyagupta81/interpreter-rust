@@ -14,7 +14,7 @@ pub enum Stmt {
         initializer: Expr,
     },
     Block {
-        stmts: Vec<Stmt>,
+        stmts: Vec<Box<Stmt>>,
     },
     IfElse {
         predicate: Expr,
