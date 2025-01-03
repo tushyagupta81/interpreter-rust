@@ -2,29 +2,65 @@ use super::scanner::Token;
 use crate::{environments::Environments, scanner, TokenType};
 use std::{cell::RefCell, error::Error, rc::Rc};
 
-fn unwrap_as_f32(literal: Option<scanner::LiteralValue>) -> f32 {
+fn unwrap_as_f64(literal: Option<scanner::LiteralValue>) -> f64 {
     match literal {
-        Some(scanner::LiteralValue::IntValue(x)) => x as f32,
-        Some(scanner::LiteralValue::FloatValue(x)) => x as f32,
-        _ => panic!("Couldnt unwrap as f32"),
+        Some(scanner::LiteralValue::FloatValue(x)) => x,
+        _ => panic!("Couldnt unwrap as f64"),
     }
 }
 
 fn unwrap_as_string(literal: Option<scanner::LiteralValue>) -> String {
     match literal {
         Some(scanner::LiteralValue::StringValue(s)) => s.clone(),
-        Some(scanner::LiteralValue::IdentifierValue(s)) => s.clone(),
         _ => panic!("Couldnt unwrap to string"),
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone)]
 pub enum LiteralValue {
-    Number(f32),
+    Number(f64),
     StringValue(String),
     True,
     False,
     Nil,
+    Callable {
+        name: String,
+        arity: usize,
+        fun: Rc<dyn Fn(Vec<LiteralValue>) -> LiteralValue>,
+    },
+}
+
+impl std::fmt::Debug for LiteralValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+
+impl PartialEq for LiteralValue {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (LiteralValue::Number(x), LiteralValue::Number(y)) => x == y,
+            (LiteralValue::StringValue(x), LiteralValue::StringValue(y)) => x == y,
+            (LiteralValue::False, LiteralValue::False) => true,
+            (LiteralValue::True, LiteralValue::True) => true,
+            (LiteralValue::Nil, LiteralValue::Nil) => true,
+            (
+                LiteralValue::Callable {
+                    name,
+                    arity,
+                    fun: _,
+                },
+                LiteralValue::Callable {
+                    name: name2,
+                    arity: arity2,
+                    fun: _,
+                },
+            ) => {
+                name==name2 && arity==arity2
+            }
+            _ => todo!()
+        }
+    }
 }
 
 #[allow(clippy::inherent_to_string)]
@@ -36,6 +72,11 @@ impl LiteralValue {
             LiteralValue::True => "true".to_string(),
             LiteralValue::False => "false".to_string(),
             LiteralValue::Nil => "nil".to_string(),
+            LiteralValue::Callable {
+                name,
+                arity,
+                fun: _,
+            } => format!("{}/{}", name, arity),
         }
     }
 
@@ -45,12 +86,17 @@ impl LiteralValue {
             LiteralValue::StringValue(_) => "String",
             LiteralValue::True | LiteralValue::False => "Boolean",
             LiteralValue::Nil => "Nil",
+            LiteralValue::Callable {
+                name: _,
+                arity: _,
+                fun: _,
+            } => "Callable",
         }
     }
 
     pub fn from_token(token: &Token) -> Self {
         match token.token_type {
-            TokenType::Number => Self::Number(unwrap_as_f32(token.literal.clone())),
+            TokenType::Number => Self::Number(unwrap_as_f64(token.literal.clone())),
             TokenType::String_ => Self::StringValue(unwrap_as_string(token.literal.clone())),
             TokenType::True => Self::True,
             TokenType::False => Self::False,
@@ -78,6 +124,13 @@ impl LiteralValue {
             LiteralValue::False => LiteralValue::True,
             LiteralValue::True => LiteralValue::False,
             LiteralValue::Nil => LiteralValue::True,
+            LiteralValue::Callable {
+                name: _,
+                arity: _,
+                fun: _,
+            } => {
+                panic!("Cannot use callable as truthy value")
+            }
         }
     }
 
@@ -100,6 +153,13 @@ impl LiteralValue {
             LiteralValue::True => LiteralValue::True,
             LiteralValue::False => LiteralValue::False,
             LiteralValue::Nil => LiteralValue::False,
+            LiteralValue::Callable {
+                name: _,
+                arity: _,
+                fun: _,
+            } => {
+                panic!("Cannot use callable as truthy value")
+            }
         }
     }
 
@@ -112,7 +172,7 @@ impl LiteralValue {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum Expr {
     Binary {
         left: Box<Expr>,
@@ -141,9 +201,19 @@ pub enum Expr {
         name: Token,
         value: Box<Expr>,
     },
+    Call {
+        callee: Box<Expr>,
+        paren: Token,
+        args: Vec<Expr>,
+    },
 }
 
-#[allow(dead_code)]
+impl std::fmt::Debug for Expr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+
 #[allow(clippy::inherent_to_string)]
 impl Expr {
     pub fn to_string(&self) -> String {
@@ -185,6 +255,17 @@ impl Expr {
                     right.to_string()
                 )
             }
+            Expr::Call {
+                callee,
+                paren: _,
+                args,
+            } => {
+                format!(
+                    "{} {:?}",
+                    callee.to_string(),
+                    args //args.iter().map(|arg| arg.to_string()).collect::<String>()
+                )
+            }
         }
     }
 
@@ -197,6 +278,32 @@ impl Expr {
                 Some(val) => val.clone(),
                 None => return Err(format!("Variable '{}' is not defined", name.lexeme).into()),
             },
+            Expr::Call {
+                callee,
+                paren:_,
+                args,
+            } => {
+                let callable = callee.evaluvate(env.clone())?;
+                match callable {
+                    LiteralValue::Callable {
+                        name,
+                        arity,
+                        fun: _,
+                    } => {
+                        if args.len() != arity {
+                            return Err(format!(
+                                "Callable '{}' expexted {} arguments and got {} arguments",
+                                name,
+                                arity,
+                                args.len()
+                            )
+                            .into());
+                        }
+                        todo!()
+                    }
+                    e => return Err(format!("{} is not callable", e.to_type()).into()),
+                }
+            }
             Expr::Assign { name, value } => {
                 let new_value = (*value).evaluvate(env.clone())?;
                 let assign_success = env.borrow_mut().assign(&name.lexeme, new_value.clone());
@@ -318,6 +425,7 @@ impl Expr {
         Ok(res)
     }
 
+    #[allow(dead_code)]
     pub fn print(&self) {
         println!("{}", self.to_string());
     }

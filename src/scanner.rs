@@ -1,7 +1,6 @@
 use crate::TokenType::*;
 use core::fmt;
-use std::string::String;
-use std::{collections::HashMap, error::Error};
+use std::{collections::HashMap, error::Error, string::String};
 
 pub struct Scanner {
     source: String,
@@ -334,13 +333,10 @@ impl std::fmt::Display for TokenType {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 #[allow(clippy::enum_variant_names)]
 pub enum LiteralValue {
-    IntValue(i64),
     FloatValue(f64),
     StringValue(String),
-    IdentifierValue(String),
 }
 
 #[derive(Debug, Clone)]
@@ -352,23 +348,8 @@ pub struct Token {
     pub line_number: usize,
 }
 
-#[allow(dead_code)]
 impl Token {
-    pub fn new(
-        token_type: TokenType,
-        lexeme: String,
-        literal: LiteralValue,
-        line_number: usize,
-    ) -> Self {
-        Self {
-            token_type,
-            lexeme,
-            literal: Some(literal),
-            line_number,
-        }
-    }
-
-    #[allow(clippy::inherent_to_string)]
+    #[allow(clippy::inherent_to_string, dead_code)]
     pub fn to_string(&self) -> String {
         format!("{} {} {:?}", self.token_type, self.lexeme, self.literal)
     }

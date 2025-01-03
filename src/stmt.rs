@@ -28,7 +28,7 @@ pub enum Stmt {
     },
 }
 
-#[allow(clippy::inherent_to_string,dead_code,unused_variables)]
+#[allow(clippy::inherent_to_string, dead_code)]
 impl Stmt {
     pub fn to_string(&self) -> String {
         match self {
@@ -43,13 +43,13 @@ impl Stmt {
                 .map(|stmt| stmt.to_string())
                 .collect::<String>(),
             Stmt::IfElse {
-                predicate,
-                then_branch,
-                else_branch,
+                predicate: _,
+                then_branch: _,
+                else_branch: _,
             } => {
                 todo!()
             }
-            Stmt::WhileLoop { cond, body } => {
+            Stmt::WhileLoop { cond: _, body: _ } => {
                 todo!()
             }
         }

@@ -4,12 +4,32 @@ use std::error::Error;
 use std::rc::Rc;
 
 pub struct Interpreter {
+    globals: Environments,
     environments: Rc<RefCell<Environments>>,
+}
+
+fn clock_impl(_args: Vec<LiteralValue>) -> LiteralValue {
+let now = std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .expect("Could not get system time")
+        .as_millis();
+
+    LiteralValue::Number(now as f64 / 1000.0)
 }
 
 impl Interpreter {
     pub fn new() -> Self {
+        let mut globals = Environments::new();
+        globals.define(
+            "clock".to_string(),
+            LiteralValue::Callable {
+                name: "clock".to_string(),
+                arity: 0,
+                fun: Rc::from(clock_impl)
+            },
+        );
         Self {
+            globals: Environments::new(),
             environments: Rc::new(RefCell::new(Environments::new())),
         }
     }

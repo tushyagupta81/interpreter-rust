@@ -122,12 +122,12 @@ impl Parser {
             self.statement()?
         };
 
-        let cond = if cond.is_none() {
+        let cond = if let Some(s) = cond {
+            s
+        } else {
             Expr::Literal {
                 literal: LiteralValue::True,
             }
-        } else {
-            cond.unwrap()
         };
 
         let mut body_while = Stmt::WhileLoop {
@@ -323,7 +323,47 @@ impl Parser {
                 right: Box::from(rhs_expr),
             });
         }
-        self.primary()
+        self.call()
+    }
+
+    fn call(&mut self) -> Result<Expr, Box<dyn Error>> {
+        let mut expr = self.primary()?;
+        loop {
+            if self.match_token(LeftParen) {
+                expr = self.finish_call(expr)?;
+            } else {
+                break;
+            }
+        }
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Expr) -> Result<Expr, Box<dyn Error>> {
+        let mut args = vec![];
+
+        if !self.check(RightParen) {
+            loop {
+                let arg = self.expression()?;
+                if args.len() > 255 {
+                    return Err(format!(
+                        "Line {}: Cannot have more than 255 args",
+                        self.peek().line_number
+                    )
+                    .into());
+                }
+                args.push(arg);
+                if !self.match_token(Comma) {
+                    break;
+                }
+            }
+        }
+
+        let paren = self.consume(RightParen, "Expexted ')' after arguments")?;
+        Ok(Expr::Call {
+            callee: Box::from(callee),
+            paren,
+            args,
+        })
     }
 
     fn primary(&mut self) -> Result<Expr, Box<dyn Error>> {
