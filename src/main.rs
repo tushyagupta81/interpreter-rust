@@ -4,6 +4,7 @@ mod interpreter;
 mod parser;
 mod scanner;
 mod stmt;
+mod tests;
 use interpreter::Interpreter;
 use parser::Parser;
 
