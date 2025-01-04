@@ -2,6 +2,7 @@ use crate::TokenType::*;
 use core::fmt;
 use std::{collections::HashMap, error::Error, string::String};
 
+// Scan through the buffer given and give out tokens
 pub struct Scanner {
     source: String,
     tokens: Vec<Token>,
@@ -11,6 +12,7 @@ pub struct Scanner {
     keywords: HashMap<&'static str, TokenType>,
 }
 
+//Helper functions
 fn is_digit(ch: char) -> bool {
     ch.is_ascii_digit()
 }
@@ -51,11 +53,18 @@ impl Scanner {
             ]),
         }
     }
+
+    // Main scanner function that is invoked from the main
+    // Returns a list of tokens in the whole buffer given
+    // Stores a list of errors and returns them together in a long list
     pub fn scan_tokens(&mut self) -> Result<Vec<Token>, Box<dyn Error>> {
         let mut errors = vec![];
+        // While not at the end of the file keep on going
         while !self.is_at_end() {
+            // shift the start index to where the previous run ended
             self.start = self.current;
             // scann tokens in line
+            // if err store it to report together
             if let Err(e) = self.scan_token() {
                 errors.push(e)
             }
@@ -85,6 +94,7 @@ impl Scanner {
         self.current >= self.source.len()
     }
 
+    // Core scanner function where it branches acording to the syntax
     fn scan_token(&mut self) -> Result<(), Box<dyn Error>> {
         let c = self.advance();
 
@@ -148,7 +158,6 @@ impl Scanner {
 
             '"' => {
                 self.string_literal()?;
-                //match self.string_literal() { Err(e) => return Err(e), _ => (), }
             }
 
             ' ' | '\r' | '\t' => (),
@@ -157,10 +166,6 @@ impl Scanner {
             c => {
                 if is_digit(c) {
                     self.number()?;
-                    //match self.number() {
-                    //    Err(e) => return Err(e),
-                    //    _ => (),
-                    //}
                 } else if is_alpha(c) {
                     self.identifier()?;
                 } else {
@@ -171,12 +176,16 @@ impl Scanner {
         Ok(())
     }
 
+    // This is called when we get a word that does not start with a number
     fn identifier(&mut self) -> Result<(), Box<dyn Error>> {
+        // Keep moving the current pointer ahead till we see alphabets
         while is_alpha_num(self.peek()) {
             self.advance();
         }
 
+        // Get the identifier ranging from start to current
         let substring = &self.source[self.start..self.current];
+        // Check if the identifier is a reserved keyword
         let token_type = match self.keywords.get(substring) {
             Some(e) => e.clone(),
             None => Identifier,
@@ -186,21 +195,28 @@ impl Scanner {
         Ok(())
     }
 
+    // Run like the identifier but when the word starts with a number
     fn number(&mut self) -> Result<(), Box<dyn Error>> {
+        // Keep moving the current pointer ahead till we see digits
         while is_digit(self.peek()) {
             self.advance();
         }
 
+        // Check if floating point is followed by a number
         if self.peek() == '.' && is_digit(self.peek_next()) {
             self.advance();
+            // Get the number following the dot
             while is_digit(self.peek()) {
                 self.advance();
             }
         }
 
+        // get the int or float as a string
         let s = &self.source.as_str()[self.start..self.current];
+        // pasre it to f64
         match s.parse::<f64>() {
             Ok(v) => {
+                // All numbers are stored as float
                 self.add_token_lit(Number, Some(LiteralValue::FloatValue(v)));
             }
             Err(_) => return Err(format!("Failed to parse number at line {}", self.line).into()),
@@ -208,6 +224,7 @@ impl Scanner {
         Ok(())
     }
 
+    // Helper function to check if current char matches a given char and moves current by one
     fn char_match(&mut self, c: char) -> bool {
         if self.is_at_end() {
             return false;
@@ -220,7 +237,9 @@ impl Scanner {
         }
     }
 
+    // Called when we encounter '"'
     fn string_literal(&mut self) -> Result<(), Box<dyn Error>> {
+        // Keep on going till the source ends or u find the closeing '"'
         while !self.is_at_end() && self.peek() != '"' {
             if self.peek() == '\n' {
                 self.line += 1;
@@ -228,15 +247,18 @@ impl Scanner {
             self.advance();
         }
         self.advance();
+        // If we reach the end the string was not terminated
         if self.is_at_end() {
             return Err("String is not terminated".into());
         }
+        // Get the literal as a string and then convert it into a LiteralValue enum
         let literal = &self.source.as_str()[self.start + 1..self.current - 1];
         let literal = LiteralValue::StringValue(literal.to_string());
         self.add_token_lit(String_, Some(literal));
         Ok(())
     }
 
+    // Return the char after the current pointer
     fn peek(&self) -> char {
         if self.is_at_end() {
             return '\0';
@@ -244,6 +266,7 @@ impl Scanner {
         self.source.as_bytes()[self.current] as char
     }
 
+    // Returns the char after peek if it does not encounter the end
     fn peek_next(&self) -> char {
         if self.current + 1 > self.source.len() {
             '\0'
@@ -252,6 +275,7 @@ impl Scanner {
         }
     }
 
+    // Add a token with the None LiteralValue
     fn add_token(&mut self, token_type: TokenType) {
         self.add_token_lit(token_type, None);
     }

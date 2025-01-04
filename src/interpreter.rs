@@ -9,6 +9,7 @@ pub struct Interpreter {
     environments: Rc<RefCell<Environments>>,
 }
 
+#[allow(clippy::ptr_arg)]
 fn clock_impl(_parent_env: Rc<RefCell<Environments>>, _args: &Vec<LiteralValue>) -> LiteralValue {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
@@ -42,6 +43,7 @@ impl Interpreter {
         Interpreter { environments }
     }
 
+    #[allow(clippy::let_and_return)]
     pub fn interpret(&mut self, stmts: Vec<&Stmt>) -> Result<Option<LiteralValue>, Box<dyn Error>> {
         for stmt in stmts {
             match stmt {
@@ -60,27 +62,22 @@ impl Interpreter {
                                 .borrow_mut()
                                 .define(params[i].lexeme.clone(), arg.clone());
                         }
-                        for i in 0..(body.len() - 1) {
+                        for i in body.iter().take(body.len() - 1) {
                             closure_interpreter
-                                .interpret(vec![body[i].as_ref()])
-                                .expect(
-                                    format!("Evaluvation failed inside {:?}", name_clone)
-                                        .as_str(),
-                                );
+                                .interpret(vec![i.as_ref()])
+                                .unwrap_or_else(|_| {
+                                    panic!("Evaluvation failed inside {:?}", name_clone)
+                                });
                         }
-                        let val;
-                        match &*body[body.len() - 1] {
-                            Stmt::Expression { expression } => {
-                                val = expression
-                                    .evaluvate(closure_interpreter.environments.clone())
-                                    .expect(
-                                        format!(
-                                            "Evaluvation failed inside {:?} while getting value",
-                                            name_clone
-                                        )
-                                        .as_str(),
-                                    );
-                            }
+                        let val = match &*body[body.len() - 1] {
+                            Stmt::Expression { expression } => expression
+                                .evaluvate(closure_interpreter.environments.clone())
+                                .unwrap_or_else(|_| {
+                                    panic!(
+                                        "Evaluvation failed inside {:?} while getting value",
+                                        name_clone
+                                    )
+                                }),
                             _ => todo!(),
                         };
                         val

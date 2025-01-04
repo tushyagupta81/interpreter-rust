@@ -17,6 +17,7 @@ use std::io;
 use std::io::Write;
 use std::process::exit;
 
+// Run if file is given
 fn run_file(path: &str) -> Result<(), Box<dyn Error>> {
     let contents = fs::read_to_string(path)?;
     let mut interpreter: Interpreter = Interpreter::new();
@@ -24,6 +25,7 @@ fn run_file(path: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+// Run for either promt or file
 fn run(interpreter: &mut Interpreter, contents: &str) -> Result<(), Box<dyn Error>> {
     let mut scanner = Scanner::new(contents);
     let tokens = scanner.scan_tokens()?;
@@ -36,23 +38,26 @@ fn run(interpreter: &mut Interpreter, contents: &str) -> Result<(), Box<dyn Erro
     Ok(())
 }
 
+// Run if no file is given
 fn run_prompt() -> Result<(), Box<dyn Error>> {
     let mut interpreter: Interpreter = Interpreter::new();
     loop {
-        print!("> ");
-        io::stdout().flush().unwrap();
-        let stdin = io::stdin();
         let mut buffer = String::new();
-        stdin.read_line(&mut buffer)?;
-        if buffer.trim() == "exit" || buffer.trim() == "" {
-            break;
+        while !(buffer.trim().ends_with(";") || buffer.trim().ends_with("}")) {
+            print!("> ");
+            io::stdout().flush().unwrap();
+            let stdin = io::stdin();
+            stdin.read_line(&mut buffer)?;
+            if buffer.trim() == "exit" || buffer.trim() == "" {
+                exit(0);
+            }
         }
         match run(&mut interpreter, &buffer) {
             Ok(_) => (),
             Err(e) => println!("{}", e),
         }
+        println!();
     }
-    Ok(())
 }
 
 fn main() {

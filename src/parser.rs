@@ -13,7 +13,6 @@ pub struct Parser {
 #[derive(Debug)]
 enum FunctionKind {
     Function,
-    Method,
 }
 
 impl Parser {
@@ -21,16 +20,23 @@ impl Parser {
         Self { tokens, current: 0 }
     }
 
+    // The Main parse function that is called from outside
+    // Converts the tokens into a array of statements
+    // Returns errors together by storing them in a array
     pub fn parse(&mut self) -> Result<Vec<Stmt>, Box<dyn Error>> {
         let mut stmts = vec![];
         let mut errors = vec![];
 
+        // go through all the tokens
         while !self.is_at_end() {
+            // get a single statement
             let stmt = self.declaration();
             match stmt {
                 Ok(s) => stmts.push(s),
                 Err(e) => {
                     errors.push(e);
+                    // If we get a error we need to move the pointer forward to where we can
+                    // continue parsing
                     self.synchronize();
                 }
             }
@@ -39,6 +45,7 @@ impl Parser {
         if errors.is_empty() {
             Ok(stmts)
         } else {
+            // If u get errors report them together
             let mut err = String::new();
             for error in errors {
                 err.push_str(format!("{}{}", &error.to_string(), "\n").as_str());
@@ -47,6 +54,7 @@ impl Parser {
         }
     }
 
+    // Matches the start of a statement to multiple branches
     fn declaration(&mut self) -> Result<Stmt, Box<dyn Error>> {
         if self.match_token(TokenType::Var) {
             self.var_declaration()
@@ -57,20 +65,25 @@ impl Parser {
         }
     }
 
+    // Function declaration
     fn function(&mut self, kind: FunctionKind) -> Result<Stmt, Box<dyn Error>> {
+        // Get the function name
         let token = self.consume(
             TokenType::Identifier,
             format!("Expected {:?} name", kind).as_str(),
         )?;
+        // Check for the (
         self.consume(
             LeftParen,
             format!("Expected '(' after {:?} name", kind).as_str(),
         )?;
 
         let mut params = vec![];
+        // Check for either no params
         if !self.check(RightParen) {
             loop {
                 if params.len() >= 255 {
+                    // Max length for params is 255
                     return Err(format!(
                         "Line {}: Cannot have more than 255 args",
                         self.peek().line_number
@@ -78,6 +91,7 @@ impl Parser {
                     .into());
                 }
                 params.push(self.consume(Identifier, "Expected parameter name")?);
+                // Need a comma after param
                 if !self.match_token(Comma) {
                     break;
                 }
@@ -85,16 +99,20 @@ impl Parser {
         }
 
         self.consume(RightParen, "Expected ')' after parameters")?;
+        // Enter the function block
         self.consume(
             LeftBrace,
             format!("Expected '{}' before {:?} name", "{", kind).as_str(),
         )?;
 
+        // The body of the function which is basically a block
+        // Will return a array of statements
         let body = match self.block()? {
             Stmt::Block { stmts } => stmts,
             _ => panic!("Block statement parsed something that was not a block"),
         };
 
+        // Return a function statement
         Ok(Stmt::Function {
             name: token,
             params,
@@ -102,9 +120,14 @@ impl Parser {
         })
     }
 
+    // Encountered the 'var' keyword
     fn var_declaration(&mut self) -> Result<Stmt, Box<dyn Error>> {
+        // Get the variable name
         let token = self.consume(TokenType::Identifier, "Expect variable name.")?;
 
+        // Check if the variable is initialized
+        // var a; -> declaration
+        // var a=1; -> initialized
         let initializer = if self.match_token(Equal) {
             self.expression()?
         } else {
@@ -124,6 +147,7 @@ impl Parser {
         })
     }
 
+    // Here we get the statements that have a lower presedence than in the declaration
     fn statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
         if self.match_token(Print) {
             self.print_expression()
@@ -140,8 +164,10 @@ impl Parser {
         }
     }
 
+    // For loop is syntactic sugar and uses while loop under the hood
     fn for_statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
         self.consume(LeftParen, "Expect '(' after 'for'.")?;
+        // Check if a variable is initialized, assigned a new val or is not given at all
         let initializer = if self.match_token(Semicolon) {
             None
         } else if self.match_token(Var) {
@@ -150,6 +176,7 @@ impl Parser {
             Some(self.expression_statement()?)
         };
 
+        // Check if a condition exists or not
         let cond = if !self.check(Semicolon) {
             Some(self.expression()?)
         } else {
@@ -157,6 +184,7 @@ impl Parser {
         };
         self.consume(Semicolon, "Expect ';' after loop condition.")?;
 
+        // Check if a increment exists or not
         let increment = if !self.check(RightParen) {
             Some(self.expression()?)
         } else {
@@ -165,6 +193,8 @@ impl Parser {
 
         self.consume(RightParen, "Expect ')' after for clauses.")?;
 
+        // The body of a for loop is basically a block
+        // We append the increment to the end of said block
         let body = if let Some(expr) = increment {
             let stmts = vec![
                 Box::from(self.statement()?),
@@ -175,6 +205,7 @@ impl Parser {
             self.statement()?
         };
 
+        // If there is no condition we set it to True
         let cond = if let Some(s) = cond {
             s
         } else {
@@ -183,11 +214,14 @@ impl Parser {
             }
         };
 
+        // We create a while loop using the above block with the increment
         let mut body_while = Stmt::WhileLoop {
             cond,
             body: Box::from(body),
         };
 
+        // If we have a increment we nest the while loop in another block and initalize the
+        // initializer in the parent block
         if let Some(expr) = initializer {
             body_while = Stmt::Block {
                 stmts: vec![Box::from(expr), Box::from(body_while)],
@@ -197,10 +231,12 @@ impl Parser {
         Ok(body_while)
     }
 
+    // While loop is basically a reoccouring block statement
     fn while_statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
         self.consume(LeftParen, "Expect '(' after 'while'.")?;
         let cond = self.expression()?;
         self.consume(RightParen, "Expect ')' after condition.")?;
+        // Should return a Block Statement
         let body = Box::from(self.statement()?);
 
         Ok(Stmt::WhileLoop { cond, body })

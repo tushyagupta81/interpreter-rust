@@ -26,6 +26,7 @@ pub enum LiteralValue {
     Callable {
         name: String,
         arity: usize,
+        #[allow(clippy::type_complexity)]
         fun: Rc<dyn Fn(Rc<RefCell<Environments>>, &Vec<LiteralValue>) -> LiteralValue>,
     },
 }
@@ -199,6 +200,7 @@ pub enum Expr {
         name: Token,
         value: Box<Expr>,
     },
+    #[allow(dead_code)]
     Call {
         callee: Box<Expr>,
         paren: Token,
