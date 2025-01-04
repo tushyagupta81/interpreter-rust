@@ -1,7 +1,8 @@
 use super::scanner::Token;
-use crate::{environments::Environments, scanner, TokenType};
+use crate::{environments::Environment, scanner, TokenType};
 use std::{cell::RefCell, error::Error, rc::Rc};
 
+// unwraping helper function
 fn unwrap_as_f64(literal: Option<scanner::LiteralValue>) -> f64 {
     match literal {
         Some(scanner::LiteralValue::FloatValue(x)) => x,
@@ -9,6 +10,7 @@ fn unwrap_as_f64(literal: Option<scanner::LiteralValue>) -> f64 {
     }
 }
 
+// unwraping helper function
 fn unwrap_as_string(literal: Option<scanner::LiteralValue>) -> String {
     match literal {
         Some(scanner::LiteralValue::StringValue(s)) => s.clone(),
@@ -27,7 +29,7 @@ pub enum LiteralValue {
         name: String,
         arity: usize,
         #[allow(clippy::type_complexity)]
-        fun: Rc<dyn Fn(Rc<RefCell<Environments>>, &Vec<LiteralValue>) -> LiteralValue>,
+        fun: Rc<dyn Fn(Rc<RefCell<Environment>>, &Vec<LiteralValue>) -> LiteralValue>,
     },
 }
 
@@ -44,6 +46,8 @@ impl PartialEq for LiteralValue {
             (LiteralValue::StringValue(x), LiteralValue::StringValue(y)) => x == y,
             (LiteralValue::False, LiteralValue::False) => true,
             (LiteralValue::True, LiteralValue::True) => true,
+            (LiteralValue::False, LiteralValue::True) => false,
+            (LiteralValue::True, LiteralValue::False) => false,
             (LiteralValue::Nil, LiteralValue::Nil) => true,
             (
                 LiteralValue::Callable {
@@ -57,7 +61,9 @@ impl PartialEq for LiteralValue {
                     fun: _,
                 },
             ) => name == name2 && arity == arity2,
-            _ => todo!(),
+            _ => {
+                panic!("Error in PartialEq of LiteralValue")
+            }
         }
     }
 }
@@ -75,7 +81,7 @@ impl LiteralValue {
                 name,
                 arity,
                 fun: _,
-            } => format!("{}/{}", name, arity),
+            } => format!("<fn {}>/{}", name, arity),
         }
     }
 
@@ -93,6 +99,7 @@ impl LiteralValue {
         }
     }
 
+    // Create a TokenType from a given Token
     pub fn from_token(token: &Token) -> Self {
         match token.token_type {
             TokenType::Number => Self::Number(unwrap_as_f64(token.literal.clone())),
@@ -104,6 +111,7 @@ impl LiteralValue {
         }
     }
 
+    // Check is a given TokenType is False
     pub fn is_falsy(&self) -> LiteralValue {
         match self {
             LiteralValue::Number(e) => {
@@ -133,6 +141,7 @@ impl LiteralValue {
         }
     }
 
+    // Check is a given TokenType is True
     pub fn is_truthy(&self) -> LiteralValue {
         match self {
             LiteralValue::Number(e) => {
@@ -162,6 +171,7 @@ impl LiteralValue {
         }
     }
 
+    // Convert rust bool into LiteralValue bool
     pub fn from_bool(e: bool) -> Self {
         if e {
             LiteralValue::True
@@ -261,7 +271,7 @@ impl Expr {
                 args,
             } => {
                 format!(
-                    "{} {:?}",
+                    "<fn {}> {:?}",
                     callee.to_string(),
                     args //args.iter().map(|arg| arg.to_string()).collect::<String>()
                 )
@@ -269,22 +279,25 @@ impl Expr {
         }
     }
 
-    pub fn evaluvate(
-        &self,
-        env: Rc<RefCell<Environments>>,
-    ) -> Result<LiteralValue, Box<dyn Error>> {
+    // Evaluvate a Expression and return a LiteralValue
+    pub fn evaluvate(&self, env: Rc<RefCell<Environment>>) -> Result<LiteralValue, Box<dyn Error>> {
+        // Result is stored in res and returned as Ok(res) at end
         let res = match self {
+            // If its a Variable Expression we try to get it and return its value
             Expr::Variable { name } => match env.borrow().get(&name.lexeme) {
                 Some(val) => val.clone(),
                 None => return Err(format!("Variable '{}' is not defined", name.lexeme).into()),
             },
+            // Function invokation here
             Expr::Call {
                 callee,
                 paren: _,
                 args,
             } => {
+                // First evaluvate the callee to get the invoking function defination
                 let callable = callee.evaluvate(env.clone())?;
                 match callable {
+                    // Check if function defination matchs its invokation
                     LiteralValue::Callable { name, arity, fun } => {
                         // Check ig number of arguments are correct
                         if args.len() != arity {
@@ -302,42 +315,52 @@ impl Expr {
                             args_val.push(arg.evaluvate(env.clone())?)
                         }
                         // Call the fun with the args
-                        fun(env.clone(),&args_val)
+                        fun(env.clone(), &args_val)
                     }
+                    // If we dont get a callable type return error
                     e => return Err(format!("{} is not callable", e.to_type()).into()),
                 }
             }
+            // Assign a new value to a variable
             Expr::Assign { name, value } => {
                 let new_value = (*value).evaluvate(env.clone())?;
                 let assign_success = env.borrow_mut().assign(&name.lexeme, new_value.clone());
 
+                // If assignment is success return the value
                 if assign_success {
                     return Ok(new_value);
                 } else {
                     return Err(format!("Variable {} has not been declared", name.lexeme).into());
                 }
             }
+            // Logical OR and AND
             Expr::Logical {
                 left,
                 operator,
                 right,
             } => {
+                // Get the lhs eq
                 let lhs_expr = left.evaluvate(env.clone())?;
 
                 if operator.token_type == TokenType::Or {
+                    // If the operator is or and the LHS is true return it and dont compute RHS
                     if lhs_expr.is_truthy() == LiteralValue::True {
                         return Ok(lhs_expr);
                     }
+                // If operator is AND and LHS is false, Return LHS
                 } else if lhs_expr.is_falsy() == LiteralValue::True {
                     return Ok(lhs_expr);
                 }
+                // Otherwise return RHS
                 let rhs_expr = right.evaluvate(env.clone())?;
                 return Ok(rhs_expr);
             }
             Expr::Literal { literal } => literal.clone(),
             Expr::Grouping { expression } => expression.evaluvate(env)?,
             Expr::Unary { operator, right } => {
+                // Get the RHS
                 let right = &right.evaluvate(env)?;
+                // Match the operation with the evaluvated expression
                 match (right, &operator.token_type) {
                     (LiteralValue::Number(n), TokenType::Minus) => LiteralValue::Number(-n),
                     (any, TokenType::Bang) => any.is_falsy(),
@@ -358,6 +381,7 @@ impl Expr {
             } => {
                 let left = &left.evaluvate(env.clone())?;
                 let right = &right.evaluvate(env.clone())?;
+                // Long match list of all possible(yet) binary operations
                 match (left, right, &operator.token_type) {
                     (LiteralValue::Number(a), LiteralValue::Number(b), TokenType::Greater) => {
                         LiteralValue::from_bool(a > b)

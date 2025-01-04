@@ -242,6 +242,7 @@ impl Parser {
         Ok(Stmt::WhileLoop { cond, body })
     }
 
+    // Get the condition/predicate and then_branch and else_branch if it exists
     fn if_statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
         self.consume(LeftParen, "Expected '(' after 'if'")?;
         let predicate = self.expression()?;
@@ -261,6 +262,7 @@ impl Parser {
         })
     }
 
+    // Creates a array of statements till we reach a '}'
     fn block(&mut self) -> Result<Stmt, Box<dyn Error>> {
         let mut stmts = vec![];
 
@@ -274,12 +276,14 @@ impl Parser {
         Ok(Stmt::Block { stmts })
     }
 
+    // Printing branch
     fn print_expression(&mut self) -> Result<Stmt, Box<dyn Error>> {
         let val = self.expression()?;
         self.consume(Semicolon, "Expected ';' after value")?;
         Ok(Stmt::Print { expression: val })
     }
 
+    // Normal expression
     fn expression_statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
         let expr = self.expression()?;
         self.consume(Semicolon, "Expected ';' after expression")?;
@@ -290,13 +294,17 @@ impl Parser {
         self.assignment()
     }
 
+    // Assigning values to variables
     fn assignment(&mut self) -> Result<Expr, Box<dyn Error>> {
         let lhs_expr = self.or()?;
 
+        // Is the variable initialized
         if self.match_token(Equal) {
             let _eq = self.previous();
+            // Get the RHS
             let rhs_expr = self.assignment()?;
             match lhs_expr {
+                // Create the Expression
                 Expr::Variable { name } => {
                     return Ok(Expr::Assign {
                         name,
@@ -311,6 +319,7 @@ impl Parser {
         Ok(lhs_expr)
     }
 
+    // OR logical operator
     fn or(&mut self) -> Result<Expr, Box<dyn Error>> {
         let lhs_expr = self.and()?;
 
@@ -326,6 +335,7 @@ impl Parser {
         Ok(lhs_expr)
     }
 
+    // AND logical operator
     fn and(&mut self) -> Result<Expr, Box<dyn Error>> {
         let lhs_expr = self.equality()?;
 
@@ -341,6 +351,7 @@ impl Parser {
         Ok(lhs_expr)
     }
 
+    // Creates Expression for == or !=
     fn equality(&mut self) -> Result<Expr, Box<dyn Error>> {
         let mut lhs_expr = self.comparision()?;
         while self.match_tokens(vec![BangEqual, EqualEqual]) {
@@ -355,6 +366,7 @@ impl Parser {
         Ok(lhs_expr)
     }
 
+    // Creates Expr for >, <, >=, <=
     fn comparision(&mut self) -> Result<Expr, Box<dyn Error>> {
         let mut lhs_expr = self.term()?;
 
@@ -371,6 +383,7 @@ impl Parser {
         Ok(lhs_expr)
     }
 
+    // Resolves binary operations such as - or +
     fn term(&mut self) -> Result<Expr, Box<dyn Error>> {
         let mut lhs_expr = self.factor()?;
 
@@ -387,6 +400,7 @@ impl Parser {
         Ok(lhs_expr)
     }
 
+    // Resolves binay operators such as / or *
     fn factor(&mut self) -> Result<Expr, Box<dyn Error>> {
         let mut lhs_expr = self.unary()?;
 
@@ -403,6 +417,7 @@ impl Parser {
         Ok(lhs_expr)
     }
 
+    // Unary operators
     fn unary(&mut self) -> Result<Expr, Box<dyn Error>> {
         if self.match_tokens(vec![Minus, Bang]) {
             let op = self.previous().clone();
@@ -415,6 +430,7 @@ impl Parser {
         self.call()
     }
 
+    // Function call
     fn call(&mut self) -> Result<Expr, Box<dyn Error>> {
         let mut expr = self.primary()?;
         loop {
@@ -427,9 +443,11 @@ impl Parser {
         Ok(expr)
     }
 
+    // Parse a function call
     fn finish_call(&mut self, callee: Expr) -> Result<Expr, Box<dyn Error>> {
         let mut args = vec![];
 
+        // Get the arguments
         if !self.check(RightParen) {
             loop {
                 let arg = self.expression()?;
@@ -448,6 +466,7 @@ impl Parser {
         }
 
         let paren = self.consume(RightParen, "Expexted ')' after arguments")?;
+        // Create a Call Expression
         Ok(Expr::Call {
             callee: Box::from(callee),
             paren,
@@ -455,6 +474,7 @@ impl Parser {
         })
     }
 
+    // primaries such as True, False, Number, String etc
     fn primary(&mut self) -> Result<Expr, Box<dyn Error>> {
         let token = self.peek();
 
@@ -486,6 +506,7 @@ impl Parser {
         Ok(result)
     }
 
+    // consume the given token or return a error if the token does not match the expected one
     fn consume(&mut self, token_type: TokenType, msg: &str) -> Result<Token, Box<dyn Error>> {
         let token = self.peek();
         if token.token_type == token_type {
@@ -497,18 +518,22 @@ impl Parser {
         }
     }
 
+    // Return a previous token
     fn previous(&mut self) -> &Token {
         &self.tokens[self.current - 1]
     }
 
+    // Check if the source is finished
     fn is_at_end(&mut self) -> bool {
         self.tokens[self.current].token_type == Eof
     }
 
+    // Return the current token
     fn peek(&mut self) -> &Token {
         &self.tokens[self.current]
     }
 
+    // Check if the given token is the current token
     fn check(&mut self, token_type: TokenType) -> bool {
         if self.is_at_end() {
             false
@@ -517,6 +542,7 @@ impl Parser {
         }
     }
 
+    // matches a given token and then advances to the next
     fn match_token(&mut self, token: TokenType) -> bool {
         if self.is_at_end() {
             false
@@ -528,6 +554,7 @@ impl Parser {
         }
     }
 
+    // Match token buut for a array
     fn match_tokens(&mut self, token_types: Vec<TokenType>) -> bool {
         for token_type in token_types {
             if self.match_token(token_type) {
@@ -537,6 +564,7 @@ impl Parser {
         false
     }
 
+    // Go ahead one token
     fn advance(&mut self) -> &Token {
         if !self.is_at_end() {
             self.current += 1;
@@ -544,6 +572,7 @@ impl Parser {
         self.previous()
     }
 
+    // Sync up to the code if we hit a error
     fn synchronize(&mut self) {
         self.advance();
 

@@ -1,16 +1,18 @@
 use crate::Token;
-use crate::{environments::Environments, expr::LiteralValue, stmt::Stmt};
+use crate::{environments::Environment, expr::LiteralValue, stmt::Stmt};
 use std::cell::RefCell;
 use std::error::Error;
 use std::rc::Rc;
 
+// Main heart of the operation
 pub struct Interpreter {
     //globals: Environments,
-    environments: Rc<RefCell<Environments>>,
+    environments: Rc<RefCell<Environment>>,
 }
 
+// my STD library function
 #[allow(clippy::ptr_arg)]
-fn clock_impl(_parent_env: Rc<RefCell<Environments>>, _args: &Vec<LiteralValue>) -> LiteralValue {
+fn clock_impl(_parent_env: Rc<RefCell<Environment>>, _args: &Vec<LiteralValue>) -> LiteralValue {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
         .expect("Could not get system time")
@@ -21,7 +23,8 @@ fn clock_impl(_parent_env: Rc<RefCell<Environments>>, _args: &Vec<LiteralValue>)
 
 impl Interpreter {
     pub fn new() -> Self {
-        let mut globals = Environments::new();
+        // Define the STD lib functions on startup
+        let mut globals = Environment::new();
         globals.define(
             "clock".to_string(),
             LiteralValue::Callable {
@@ -37,8 +40,9 @@ impl Interpreter {
         }
     }
 
-    fn for_closure(parent: Rc<RefCell<Environments>>) -> Self {
-        let environments = Rc::new(RefCell::new(Environments::new()));
+    // Return a new Interpreter with a enclosing parent of another Interpreter
+    fn for_closure(parent: Rc<RefCell<Environment>>) -> Self {
+        let environments = Rc::new(RefCell::new(Environment::new()));
         environments.borrow_mut().enclosing = Some(parent);
         Interpreter { environments }
     }
@@ -47,21 +51,28 @@ impl Interpreter {
     pub fn interpret(&mut self, stmts: Vec<&Stmt>) -> Result<Option<LiteralValue>, Box<dyn Error>> {
         for stmt in stmts {
             match stmt {
+                // Mother of hell ah function
                 Stmt::Function { name, params, body } => {
+                    // Get the arity
                     let arity = params.len();
 
+                    // Clone all params to prevent lifetime issues
                     let params: Vec<Token> = params.iter().map(|t| (*t).clone()).collect();
                     let body: Vec<Box<Stmt>> = body.iter().map(|b| (*b).clone()).collect();
                     let name_clone = name.lexeme.clone();
 
+                    // Make a function implementaion
                     let func_impl = move |parent_env, args: &Vec<LiteralValue>| {
+                        // Get the new Interpreter
                         let mut closure_interpreter = Interpreter::for_closure(parent_env);
+                        // Define all the parameters in the new Interpreter
                         for (i, arg) in args.iter().enumerate() {
                             closure_interpreter
                                 .environments
                                 .borrow_mut()
                                 .define(params[i].lexeme.clone(), arg.clone());
                         }
+                        // Resolve the n-1 line in the body
                         for i in body.iter().take(body.len() - 1) {
                             closure_interpreter
                                 .interpret(vec![i.as_ref()])
@@ -69,6 +80,7 @@ impl Interpreter {
                                     panic!("Evaluvation failed inside {:?}", name_clone)
                                 });
                         }
+                        // Get the last line and return it
                         let val = match &*body[body.len() - 1] {
                             Stmt::Expression { expression } => expression
                                 .evaluvate(closure_interpreter.environments.clone())
@@ -78,20 +90,27 @@ impl Interpreter {
                                         name_clone
                                     )
                                 }),
-                            _ => todo!(),
+                            a => {
+                                println!("{:?}", a);
+                                todo!()
+                            }
                         };
                         val
                     };
+                    // Create a Callable
                     let callable = LiteralValue::Callable {
+                        //name: name.lexeme.clone(),
                         name: name.to_string(),
                         arity,
                         fun: Rc::from(func_impl),
                     };
 
+                    // Initialize the Callable in the Environment(parent Interpreter here)
                     self.environments
                         .borrow_mut()
                         .define(name.lexeme.clone(), callable);
                 }
+                // Keep executing a Block till the time the flag is true
                 Stmt::WhileLoop { cond, body } => {
                     let mut flag = cond.evaluvate(self.environments.clone())?;
                     while flag.is_truthy() == LiteralValue::True {
@@ -99,14 +118,17 @@ impl Interpreter {
                         flag = cond.evaluvate(self.environments.clone())?;
                     }
                 }
+                // Execute a expresssion regularly
                 Stmt::Expression { expression } => {
                     expression.evaluvate(self.environments.clone())?;
                 }
+                // Evaluvate the value and then print it out
                 Stmt::Print { expression } => {
                     let val = expression.evaluvate(self.environments.clone())?;
 
                     println!("{}", val.to_string());
                 }
+                // For a variable resolve its value and then define it in the Environment
                 Stmt::Var { name, initializer } => {
                     let val = initializer.evaluvate(self.environments.clone())?;
 
@@ -114,8 +136,11 @@ impl Interpreter {
                         .borrow_mut()
                         .define(name.lexeme.clone(), val);
                 }
+                // Make a new Environment, make it the main Environment and make the enclsing the
+                // orignal Environment to run the block
+                // Restore the old Environment when finished with the block
                 Stmt::Block { stmts } => {
-                    let mut new_env = Environments::new();
+                    let mut new_env = Environment::new();
                     new_env.enclosing = Some(self.environments.clone());
 
                     let old_env = self.environments.clone();
@@ -126,6 +151,7 @@ impl Interpreter {
 
                     block_res?;
                 }
+                // If the condition is true Execute the then_branch else do the else_branch
                 Stmt::IfElse {
                     predicate,
                     then_branch,
