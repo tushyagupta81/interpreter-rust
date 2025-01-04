@@ -1,7 +1,7 @@
 use crate::expr::Expr;
 use crate::scanner::Token;
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 #[allow(clippy::vec_box)]
 pub enum Stmt {
     Expression {
@@ -26,6 +26,11 @@ pub enum Stmt {
         cond: Expr,
         body: Box<Stmt>,
     },
+    Function {
+        name: Token,
+        params: Vec<Token>,
+        body: Vec<Box<Stmt>>
+    }
 }
 
 #[allow(clippy::inherent_to_string, dead_code)]
@@ -50,6 +55,9 @@ impl Stmt {
                 todo!()
             }
             Stmt::WhileLoop { cond: _, body: _ } => {
+                todo!()
+            }
+            Stmt::Function { name:_, params:_, body:_ } => {
                 todo!()
             }
         }

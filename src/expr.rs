@@ -26,7 +26,7 @@ pub enum LiteralValue {
     Callable {
         name: String,
         arity: usize,
-        fun: Rc<dyn Fn(Vec<LiteralValue>) -> LiteralValue>,
+        fun: Rc<dyn Fn(Rc<RefCell<Environments>>, &Vec<LiteralValue>) -> LiteralValue>,
     },
 }
 
@@ -55,10 +55,8 @@ impl PartialEq for LiteralValue {
                     arity: arity2,
                     fun: _,
                 },
-            ) => {
-                name==name2 && arity==arity2
-            }
-            _ => todo!()
+            ) => name == name2 && arity == arity2,
+            _ => todo!(),
         }
     }
 }
@@ -280,16 +278,13 @@ impl Expr {
             },
             Expr::Call {
                 callee,
-                paren:_,
+                paren: _,
                 args,
             } => {
                 let callable = callee.evaluvate(env.clone())?;
                 match callable {
-                    LiteralValue::Callable {
-                        name,
-                        arity,
-                        fun: _,
-                    } => {
+                    LiteralValue::Callable { name, arity, fun } => {
+                        // Check ig number of arguments are correct
                         if args.len() != arity {
                             return Err(format!(
                                 "Callable '{}' expexted {} arguments and got {} arguments",
@@ -299,7 +294,13 @@ impl Expr {
                             )
                             .into());
                         }
-                        todo!()
+                        // Eval the args to literalvalue
+                        let mut args_val = vec![];
+                        for arg in args {
+                            args_val.push(arg.evaluvate(env.clone())?)
+                        }
+                        // Call the fun with the args
+                        fun(env.clone(),&args_val)
                     }
                     e => return Err(format!("{} is not callable", e.to_type()).into()),
                 }

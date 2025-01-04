@@ -1,15 +1,16 @@
+use crate::Token;
 use crate::{environments::Environments, expr::LiteralValue, stmt::Stmt};
 use std::cell::RefCell;
 use std::error::Error;
 use std::rc::Rc;
 
 pub struct Interpreter {
-    globals: Environments,
+    //globals: Environments,
     environments: Rc<RefCell<Environments>>,
 }
 
-fn clock_impl(_args: Vec<LiteralValue>) -> LiteralValue {
-let now = std::time::SystemTime::now()
+fn clock_impl(_parent_env: Rc<RefCell<Environments>>, _args: &Vec<LiteralValue>) -> LiteralValue {
+    let now = std::time::SystemTime::now()
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
         .expect("Could not get system time")
         .as_millis();
@@ -25,18 +26,75 @@ impl Interpreter {
             LiteralValue::Callable {
                 name: "clock".to_string(),
                 arity: 0,
-                fun: Rc::from(clock_impl)
+                fun: Rc::from(clock_impl),
             },
         );
         Self {
-            globals: Environments::new(),
-            environments: Rc::new(RefCell::new(Environments::new())),
+            //globals,
+            //environments: Rc::new(RefCell::new(Environments::new())),
+            environments: Rc::new(RefCell::new(globals)),
         }
+    }
+
+    fn for_closure(parent: Rc<RefCell<Environments>>) -> Self {
+        let environments = Rc::new(RefCell::new(Environments::new()));
+        environments.borrow_mut().enclosing = Some(parent);
+        Interpreter { environments }
     }
 
     pub fn interpret(&mut self, stmts: Vec<&Stmt>) -> Result<Option<LiteralValue>, Box<dyn Error>> {
         for stmt in stmts {
             match stmt {
+                Stmt::Function { name, params, body } => {
+                    let arity = params.len();
+
+                    let params: Vec<Token> = params.iter().map(|t| (*t).clone()).collect();
+                    let body: Vec<Box<Stmt>> = body.iter().map(|b| (*b).clone()).collect();
+                    let name_clone = name.lexeme.clone();
+
+                    let func_impl = move |parent_env, args: &Vec<LiteralValue>| {
+                        let mut closure_interpreter = Interpreter::for_closure(parent_env);
+                        for (i, arg) in args.iter().enumerate() {
+                            closure_interpreter
+                                .environments
+                                .borrow_mut()
+                                .define(params[i].lexeme.clone(), arg.clone());
+                        }
+                        for i in 0..(body.len() - 1) {
+                            closure_interpreter
+                                .interpret(vec![body[i].as_ref()])
+                                .expect(
+                                    format!("Evaluvation failed inside {:?}", name_clone)
+                                        .as_str(),
+                                );
+                        }
+                        let val;
+                        match &*body[body.len() - 1] {
+                            Stmt::Expression { expression } => {
+                                val = expression
+                                    .evaluvate(closure_interpreter.environments.clone())
+                                    .expect(
+                                        format!(
+                                            "Evaluvation failed inside {:?} while getting value",
+                                            name_clone
+                                        )
+                                        .as_str(),
+                                    );
+                            }
+                            _ => todo!(),
+                        };
+                        val
+                    };
+                    let callable = LiteralValue::Callable {
+                        name: name.to_string(),
+                        arity,
+                        fun: Rc::from(func_impl),
+                    };
+
+                    self.environments
+                        .borrow_mut()
+                        .define(name.lexeme.clone(), callable);
+                }
                 Stmt::WhileLoop { cond, body } => {
                     let mut flag = cond.evaluvate(self.environments.clone())?;
                     while flag.is_truthy() == LiteralValue::True {

@@ -10,6 +10,12 @@ pub struct Parser {
     current: usize,
 }
 
+#[derive(Debug)]
+enum FunctionKind {
+    Function,
+    Method,
+}
+
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
         Self { tokens, current: 0 }
@@ -44,9 +50,56 @@ impl Parser {
     fn declaration(&mut self) -> Result<Stmt, Box<dyn Error>> {
         if self.match_token(TokenType::Var) {
             self.var_declaration()
+        } else if self.match_token(Func) {
+            self.function(FunctionKind::Function)
         } else {
             self.statement()
         }
+    }
+
+    fn function(&mut self, kind: FunctionKind) -> Result<Stmt, Box<dyn Error>> {
+        let token = self.consume(
+            TokenType::Identifier,
+            format!("Expected {:?} name", kind).as_str(),
+        )?;
+        self.consume(
+            LeftParen,
+            format!("Expected '(' after {:?} name", kind).as_str(),
+        )?;
+
+        let mut params = vec![];
+        if !self.check(RightParen) {
+            loop {
+                if params.len() >= 255 {
+                    return Err(format!(
+                        "Line {}: Cannot have more than 255 args",
+                        self.peek().line_number
+                    )
+                    .into());
+                }
+                params.push(self.consume(Identifier, "Expected parameter name")?);
+                if !self.match_token(Comma) {
+                    break;
+                }
+            }
+        }
+
+        self.consume(RightParen, "Expected ')' after parameters")?;
+        self.consume(
+            LeftBrace,
+            format!("Expected '{}' before {:?} name", "{", kind).as_str(),
+        )?;
+
+        let body = match self.block()? {
+            Stmt::Block { stmts } => stmts,
+            _ => panic!("Block statement parsed something that was not a block"),
+        };
+
+        Ok(Stmt::Function {
+            name: token,
+            params,
+            body,
+        })
     }
 
     fn var_declaration(&mut self) -> Result<Stmt, Box<dyn Error>> {
@@ -344,7 +397,7 @@ impl Parser {
         if !self.check(RightParen) {
             loop {
                 let arg = self.expression()?;
-                if args.len() > 255 {
+                if args.len() >= 255 {
                     return Err(format!(
                         "Line {}: Cannot have more than 255 args",
                         self.peek().line_number
