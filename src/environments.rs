@@ -22,6 +22,13 @@ impl Environment {
         self.values.insert(name, value);
     }
 
+    pub fn define_top_level(&mut self, name: String, value: LiteralValue) {
+        match &self.enclosing {
+            None => self.define(name, value),
+            Some(env) => env.borrow_mut().define_top_level(name, value),
+        }
+    }
+
     // Assign a value to a already existing variable
     pub fn assign(&mut self, name: &str, value: LiteralValue) -> bool {
         let old_value = self.values.get(name);

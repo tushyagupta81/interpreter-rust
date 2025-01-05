@@ -74,7 +74,7 @@ impl Parser {
         )?;
         // Check for the (
         self.consume(
-            LeftParen,
+            TokenType::LeftParen,
             format!("Expected '(' after {:?} name", kind).as_str(),
         )?;
 
@@ -90,7 +90,7 @@ impl Parser {
                     )
                     .into());
                 }
-                params.push(self.consume(Identifier, "Expected parameter name")?);
+                params.push(self.consume(TokenType::Identifier, "Expected parameter name")?);
                 // Need a comma after param
                 if !self.match_token(Comma) {
                     break;
@@ -98,10 +98,10 @@ impl Parser {
             }
         }
 
-        self.consume(RightParen, "Expected ')' after parameters")?;
+        self.consume(TokenType::RightParen, "Expected ')' after parameters")?;
         // Enter the function block
         self.consume(
-            LeftBrace,
+            TokenType::LeftBrace,
             format!("Expected '{}' before {:?} name", "{", kind).as_str(),
         )?;
 
@@ -149,24 +149,38 @@ impl Parser {
 
     // Here we get the statements that have a lower presedence than in the declaration
     fn statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
-        if self.match_token(Print) {
+        if self.match_token(TokenType::Print) {
             self.print_expression()
-        } else if self.match_token(LeftBrace) {
+        } else if self.match_token(TokenType::LeftBrace) {
             self.block()
-        } else if self.match_token(If) {
+        } else if self.match_token(TokenType::If) {
             self.if_statement()
-        } else if self.match_token(While) {
+        } else if self.match_token(TokenType::While) {
             self.while_statement()
-        } else if self.match_token(For) {
+        } else if self.match_token(TokenType::For) {
             self.for_statement()
+        } else if self.match_token(TokenType::Return) {
+            self.return_statement()
         } else {
             self.expression_statement()
         }
     }
 
+    fn return_statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
+        let keyword = self.previous().clone();
+        let value = if !self.check(Semicolon) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(TokenType::Semicolon, "Expected ';' after return value")?;
+
+        Ok(Stmt::Return { keyword, value })
+    }
+
     // For loop is syntactic sugar and uses while loop under the hood
     fn for_statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
-        self.consume(LeftParen, "Expect '(' after 'for'.")?;
+        self.consume(TokenType::LeftParen, "Expect '(' after 'for'.")?;
         // Check if a variable is initialized, assigned a new val or is not given at all
         let initializer = if self.match_token(Semicolon) {
             None
@@ -182,7 +196,7 @@ impl Parser {
         } else {
             None
         };
-        self.consume(Semicolon, "Expect ';' after loop condition.")?;
+        self.consume(TokenType::Semicolon, "Expect ';' after loop condition.")?;
 
         // Check if a increment exists or not
         let increment = if !self.check(RightParen) {
@@ -191,7 +205,7 @@ impl Parser {
             None
         };
 
-        self.consume(RightParen, "Expect ')' after for clauses.")?;
+        self.consume(TokenType::RightParen, "Expect ')' after for clauses.")?;
 
         // The body of a for loop is basically a block
         // We append the increment to the end of said block
@@ -233,9 +247,9 @@ impl Parser {
 
     // While loop is basically a reoccouring block statement
     fn while_statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
-        self.consume(LeftParen, "Expect '(' after 'while'.")?;
+        self.consume(TokenType::LeftParen, "Expect '(' after 'while'.")?;
         let cond = self.expression()?;
-        self.consume(RightParen, "Expect ')' after condition.")?;
+        self.consume(TokenType::RightParen, "Expect ')' after condition.")?;
         // Should return a Block Statement
         let body = Box::from(self.statement()?);
 
@@ -244,9 +258,9 @@ impl Parser {
 
     // Get the condition/predicate and then_branch and else_branch if it exists
     fn if_statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
-        self.consume(LeftParen, "Expected '(' after 'if'")?;
+        self.consume(TokenType::LeftParen, "Expected '(' after 'if'")?;
         let predicate = self.expression()?;
-        self.consume(RightParen, "Expected ')' after if-predicate")?;
+        self.consume(TokenType::RightParen, "Expected ')' after if-predicate")?;
         let then_branch = Box::from(self.statement()?);
         let else_branch = if self.match_token(Else) {
             let stmt = self.statement()?;
@@ -271,7 +285,7 @@ impl Parser {
             stmts.push(Box::from(stmt));
         }
 
-        self.consume(RightBrace, "Expect '}' after block.")?;
+        self.consume(TokenType::RightBrace, "Expect '}' after block.")?;
 
         Ok(Stmt::Block { stmts })
     }
@@ -279,14 +293,14 @@ impl Parser {
     // Printing branch
     fn print_expression(&mut self) -> Result<Stmt, Box<dyn Error>> {
         let val = self.expression()?;
-        self.consume(Semicolon, "Expected ';' after value")?;
+        self.consume(TokenType::Semicolon, "Expected ';' after value")?;
         Ok(Stmt::Print { expression: val })
     }
 
     // Normal expression
     fn expression_statement(&mut self) -> Result<Stmt, Box<dyn Error>> {
         let expr = self.expression()?;
-        self.consume(Semicolon, "Expected ';' after expression")?;
+        self.consume(TokenType::Semicolon, "Expected ';' after expression")?;
         Ok(Stmt::Expression { expression: expr })
     }
 
@@ -465,7 +479,7 @@ impl Parser {
             }
         }
 
-        let paren = self.consume(RightParen, "Expexted ')' after arguments")?;
+        let paren = self.consume(TokenType::RightParen, "Expexted ')' after arguments")?;
         // Create a Call Expression
         Ok(Expr::Call {
             callee: Box::from(callee),
@@ -483,7 +497,7 @@ impl Parser {
             LeftParen => {
                 self.advance();
                 let expr = self.expression()?;
-                self.consume(RightParen, "Expected ')'")?;
+                self.consume(TokenType::RightParen, "Expected ')'")?;
                 result = Expr::Grouping {
                     expression: Box::from(expr),
                 };
@@ -501,7 +515,10 @@ impl Parser {
                 self.advance();
             }
 
-            _ => return Err(format!("{:?} is not a primary", self.peek()).into()),
+            _ => {
+                println!("{:?}", token);
+                return Err(format!("{:?} is not a primary", self.peek()).into());
+            }
         }
         Ok(result)
     }

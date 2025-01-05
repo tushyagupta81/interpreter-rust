@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 // Main heart of the operation
 pub struct Interpreter {
-    //globals: Environments,
+    specials: Rc<RefCell<Environment>>,
     environments: Rc<RefCell<Environment>>,
 }
 
@@ -24,8 +24,8 @@ fn clock_impl(_parent_env: Rc<RefCell<Environment>>, _args: &Vec<LiteralValue>) 
 impl Interpreter {
     pub fn new() -> Self {
         // Define the STD lib functions on startup
-        let mut globals = Environment::new();
-        globals.define(
+        let mut env = Environment::new();
+        env.define(
             "clock".to_string(),
             LiteralValue::Callable {
                 name: "clock".to_string(),
@@ -34,9 +34,9 @@ impl Interpreter {
             },
         );
         Self {
-            //globals,
-            //environments: Rc::new(RefCell::new(Environments::new())),
-            environments: Rc::new(RefCell::new(globals)),
+            specials: Rc::new(RefCell::new(Environment::new())),
+            //environments: Rc::new(RefCell::new(Environment::new())),
+            environments: Rc::new(RefCell::new(env)),
         }
     }
 
@@ -44,13 +44,24 @@ impl Interpreter {
     fn for_closure(parent: Rc<RefCell<Environment>>) -> Self {
         let environments = Rc::new(RefCell::new(Environment::new()));
         environments.borrow_mut().enclosing = Some(parent);
-        Interpreter { environments }
+        Interpreter {
+            specials: Rc::new(RefCell::new(Environment::new())),
+            environments,
+        }
     }
 
     #[allow(clippy::let_and_return)]
     pub fn interpret(&mut self, stmts: Vec<&Stmt>) -> Result<Option<LiteralValue>, Box<dyn Error>> {
         for stmt in stmts {
             match stmt {
+                Stmt::Return { keyword: _, value } => {
+                    let value = match value {
+                        Some(expr) => expr.evaluvate(self.environments.clone())?,
+                        None => LiteralValue::Nil,
+                    };
+
+                    self.specials.borrow_mut().define_top_level("return".to_string(), value);
+                }
                 // Mother of hell ah function
                 Stmt::Function { name, params, body } => {
                     // Get the arity
@@ -73,29 +84,20 @@ impl Interpreter {
                                 .define(params[i].lexeme.clone(), arg.clone());
                         }
                         // Resolve the n-1 line in the body
-                        for i in body.iter().take(body.len() - 1) {
+                        #[allow(clippy::all)]
+                        for i in 0..(body.len()) {
                             closure_interpreter
-                                .interpret(vec![i.as_ref()])
+                                .interpret(vec![body[i].as_ref()])
                                 .unwrap_or_else(|_| {
                                     panic!("Evaluvation failed inside {:?}", name_clone)
                                 });
-                        }
-                        // Get the last line and return it
-                        let val = match &*body[body.len() - 1] {
-                            Stmt::Expression { expression } => expression
-                                .evaluvate(closure_interpreter.environments.clone())
-                                .unwrap_or_else(|_| {
-                                    panic!(
-                                        "Evaluvation failed inside {:?} while getting value",
-                                        name_clone
-                                    )
-                                }),
-                            a => {
-                                println!("{:?}", a);
-                                todo!()
+                            if let Some(val) =
+                                closure_interpreter.specials.borrow().get("return")
+                            {
+                                return val;
                             }
-                        };
-                        val
+                        }
+                        LiteralValue::Nil
                     };
                     // Create a Callable
                     let callable = LiteralValue::Callable {

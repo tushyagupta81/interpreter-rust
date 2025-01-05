@@ -30,7 +30,12 @@ pub enum Stmt {
         name: Token,
         params: Vec<Token>,
         body: Vec<Box<Stmt>>
-    }
+    },
+    #[allow(dead_code)]
+    Return {
+        keyword: Token,
+        value: Option<Expr>,
+    },
 }
 
 #[allow(clippy::inherent_to_string, dead_code)]
@@ -60,6 +65,7 @@ impl Stmt {
             Stmt::Function { name:_, params:_, body:_ } => {
                 todo!()
             }
+            Stmt::Return {keyword:_, value:_ } => todo!()
         }
     }
 }

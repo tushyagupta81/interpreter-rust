@@ -1,7 +1,13 @@
-func count(n) {
-  if (n > 1) count(n - 1);
-  print n;
-  1;
+func makeCounter() {
+  var i = 0;
+  func count() {
+    i = i + 1;
+    print i;
+  }
+
+  return count;
 }
 
-print count;
+var counter = makeCounter();
+counter(); // "1".
+counter(); // "2".

@@ -1,0 +1,10 @@
+func con(a) {
+  if (a>5) {
+    return 5;
+  } else {
+    return 1;
+  }
+}
+
+print con(10);
+print con(1);

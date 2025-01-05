@@ -1,0 +1,9 @@
+var a=2;
+
+func test() {
+  a=3;
+}
+
+test();
+
+print a;
