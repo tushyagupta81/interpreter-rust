@@ -6,7 +6,7 @@ mod tests {
     fn interpret_block() {
         let output = Command::new("cargo")
             .arg("run")
-            .arg("./src/tests/cases/block.tox")
+            .arg("./src/test_cases/block.tox")
             .output()
             .unwrap();
         let lines = std::str::from_utf8(output.stdout.as_slice())
@@ -23,7 +23,7 @@ mod tests {
     fn interpret_while() {
         let output = Command::new("cargo")
             .arg("run")
-            .arg("./src/tests/cases/while.tox")
+            .arg("./src/test_cases/while.tox")
             .output()
             .unwrap();
         let lines = std::str::from_utf8(output.stdout.as_slice())
@@ -40,7 +40,7 @@ mod tests {
     fn interpret_while_math() {
         let output = Command::new("cargo")
             .arg("run")
-            .arg("./src/tests/cases/while_math.tox")
+            .arg("./src/test_cases/while_math.tox")
             .output()
             .unwrap();
         let lines = std::str::from_utf8(output.stdout.as_slice())
@@ -65,7 +65,7 @@ mod tests {
     fn interpret_for_loop() {
         let output = Command::new("cargo")
             .arg("run")
-            .arg("./src/tests/cases/forloop.tox")
+            .arg("./src/test_cases/forloop.tox")
             .output()
             .unwrap();
         let lines = std::str::from_utf8(output.stdout.as_slice())
@@ -94,7 +94,7 @@ mod tests {
     fn function_defination() {
         let output = Command::new("cargo")
             .arg("run")
-            .arg("./src/tests/cases/funcdef.tox")
+            .arg("./src/test_cases/func_def.tox")
             .output()
             .unwrap();
         let lines = std::str::from_utf8(output.stdout.as_slice())
@@ -111,7 +111,7 @@ mod tests {
     fn function_changes_local_env() {
         let output = Command::new("cargo")
             .arg("run")
-            .arg("./src/tests/cases/func_mods_local_env.tox")
+            .arg("./src/test_cases/func_mods_local_env.tox")
             .output()
             .unwrap();
         let lines = std::str::from_utf8(output.stdout.as_slice())
@@ -126,7 +126,7 @@ mod tests {
     fn function_return() {
         let output = Command::new("cargo")
             .arg("run")
-            .arg("./src/tests/cases/func_return.tox")
+            .arg("./src/test_cases/func_return.tox")
             .output()
             .unwrap();
         let lines = std::str::from_utf8(output.stdout.as_slice())
@@ -141,7 +141,7 @@ mod tests {
     fn function_return_nil() {
         let output = Command::new("cargo")
             .arg("run")
-            .arg("./src/tests/cases/func_return_nil.tox")
+            .arg("./src/test_cases/func_return_nil.tox")
             .output()
             .unwrap();
         let lines = std::str::from_utf8(output.stdout.as_slice())
@@ -156,7 +156,7 @@ mod tests {
     fn function_cond() {
         let output = Command::new("cargo")
             .arg("run")
-            .arg("./src/tests/cases/func_cond.tox")
+            .arg("./src/test_cases/func_cond.tox")
             .output()
             .unwrap();
         let lines = std::str::from_utf8(output.stdout.as_slice())
@@ -170,7 +170,7 @@ mod tests {
     fn fibonacci_series() {
         let output = Command::new("cargo")
             .arg("run")
-            .arg("./src/tests/cases/fib.tox")
+            .arg("./src/test_cases/fib.tox")
             .output()
             .unwrap();
         let lines = std::str::from_utf8(output.stdout.as_slice())
@@ -197,5 +197,38 @@ mod tests {
         assert_eq!(lines[17], "2584");
         assert_eq!(lines[18], "4181");
         assert_eq!(lines[19], "6765");
+    }
+
+    #[test]
+    fn function_closure() {
+        let output = Command::new("cargo")
+            .arg("run")
+            .arg("./src/test_cases/func_closure.tox")
+            .output()
+            .unwrap();
+        let lines = std::str::from_utf8(output.stdout.as_slice())
+            .unwrap()
+            .split("\n")
+            .collect::<Vec<&str>>();
+        assert_eq!(lines[0], "1");
+        assert_eq!(lines[1], "1");
+        assert_eq!(lines[2], "2");
+        assert_eq!(lines[3], "2");
+    }
+
+    #[test]
+    fn function_anon() {
+        let output = Command::new("cargo")
+            .arg("run")
+            .arg("./src/test_cases/func_anon.tox")
+            .output()
+            .unwrap();
+        let lines = std::str::from_utf8(output.stdout.as_slice())
+            .unwrap()
+            .split("\n")
+            .collect::<Vec<&str>>();
+        assert_eq!(lines[0], "1");
+        assert_eq!(lines[1], "2");
+        assert_eq!(lines[2], "3");
     }
 }

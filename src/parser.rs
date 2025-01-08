@@ -514,13 +514,67 @@ impl Parser {
                 };
                 self.advance();
             }
-
+            Func => {
+                self.advance();
+                result = self.function_expression()?;
+            }
             _ => {
-                println!("{:?}", token);
                 return Err(format!("{:?} is not a primary", self.peek()).into());
             }
         }
         Ok(result)
+    }
+
+    fn function_expression(&mut self) -> Result<Expr, Box<dyn Error>> {
+        // Check for the (
+        let paren = self.consume(
+            TokenType::LeftParen,
+            "Expected '(' after anonymous function",
+        )?;
+
+        let mut params = vec![];
+        // Check for either no params
+        if !self.check(RightParen) {
+            loop {
+                if params.len() >= 255 {
+                    // Max length for params is 255
+                    return Err(format!(
+                        "Line {}: Cannot have more than 255 args",
+                        self.peek().line_number
+                    )
+                    .into());
+                }
+                params.push(self.consume(TokenType::Identifier, "Expected parameter name")?);
+                // Need a comma after param
+                if !self.match_token(Comma) {
+                    break;
+                }
+            }
+        }
+
+        self.consume(
+            TokenType::RightParen,
+            "Expected ')' after anonymous function parameters",
+        )?;
+        // Enter the function block
+        self.consume(
+            TokenType::LeftBrace,
+            "Expected '{' after anonymous function arguments",
+        )?;
+
+        // The body of the function which is basically a block
+        // Will return a array of statements
+        let body = match self.block()? {
+            Stmt::Block { stmts } => stmts,
+            _ => panic!("Block statement parsed something that was not a block"),
+        };
+
+        // Return a function statement
+        Ok(Expr::AnonFunc {
+            paren,
+            args: params,
+            body,
+        })
     }
 
     // consume the given token or return a error if the token does not match the expected one

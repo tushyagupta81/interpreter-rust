@@ -1,0 +1,18 @@
+func makeCounter() {
+  var i = 0;
+
+  func count() {
+    i = i + 1;
+    print i;
+  }
+
+  return count;
+}
+
+var counter1 = makeCounter();
+var counter2 = makeCounter();
+counter1();
+counter2();
+
+counter1();
+counter2();

@@ -1,5 +1,5 @@
 use super::scanner::Token;
-use crate::{environments::Environment, scanner, TokenType};
+use crate::{environments::Environment, interpreter::Interpreter, scanner, stmt::Stmt, TokenType};
 use std::{cell::RefCell, error::Error, rc::Rc};
 
 // unwraping helper function
@@ -29,7 +29,7 @@ pub enum LiteralValue {
         name: String,
         arity: usize,
         #[allow(clippy::type_complexity)]
-        fun: Rc<dyn Fn(Rc<RefCell<Environment>>, &Vec<LiteralValue>) -> LiteralValue>,
+        fun: Rc<dyn Fn(&Vec<LiteralValue>) -> LiteralValue>,
     },
 }
 
@@ -216,6 +216,12 @@ pub enum Expr {
         paren: Token,
         args: Vec<Expr>,
     },
+    #[allow(clippy::vec_box)]
+    AnonFunc {
+        paren: Token,
+        args: Vec<Token>,
+        body: Vec<Box<Stmt>>,
+    },
 }
 
 impl std::fmt::Debug for Expr {
@@ -276,6 +282,13 @@ impl Expr {
                     args //args.iter().map(|arg| arg.to_string()).collect::<String>()
                 )
             }
+            Expr::AnonFunc {
+                args,
+                body: _,
+                paren: _,
+            } => {
+                format!("anon/{}", args.len())
+            }
         }
     }
 
@@ -283,6 +296,48 @@ impl Expr {
     pub fn evaluvate(&self, env: Rc<RefCell<Environment>>) -> Result<LiteralValue, Box<dyn Error>> {
         // Result is stored in res and returned as Ok(res) at end
         let res = match self {
+            Expr::AnonFunc {
+                paren,
+                args,
+                body,
+            } => {
+                // Clone all params to prevent lifetime issues
+                let arguments: Vec<Token> = args.iter().map(|t| (*t).clone()).collect();
+                let body: Vec<Box<Stmt>> = body.iter().map(|b| (*b).clone()).collect();
+                let paren_line = paren.line_number;
+
+                let func_impl = move |args: &Vec<LiteralValue>| {
+                    // Get the new Interpreter
+                    let mut anon_env = Interpreter::for_anon(env.clone());
+                    // Define all the parameters in the new Interpreter
+                    for (i, arg) in args.iter().enumerate() {
+                        anon_env
+                            .environments
+                            .borrow_mut()
+                            .define(arguments[i].lexeme.clone(), arg.clone());
+                    }
+                    // Resolve the n-1 line in the body
+                    #[allow(clippy::all)]
+                    for i in 0..(body.len()) {
+                        anon_env.interpret(vec![body[i].as_ref()]).unwrap_or_else(|_| {
+                            panic!(
+                                "Evaluvation failed inside anon_func at line {}",
+                                paren_line.clone()
+                            )
+                        });
+                        if let Some(val) = anon_env.specials.borrow().get("return") {
+                            return val;
+                        }
+                    }
+                    LiteralValue::Nil
+                };
+
+                LiteralValue::Callable {
+                    name: "anon_function".to_string(),
+                    arity: args.len(),
+                    fun: Rc::from(func_impl),
+                }
+            }
             // If its a Variable Expression we try to get it and return its value
             Expr::Variable { name } => match env.borrow().get(&name.lexeme) {
                 Some(val) => val.clone(),
@@ -315,7 +370,7 @@ impl Expr {
                             args_val.push(arg.evaluvate(env.clone())?)
                         }
                         // Call the fun with the args
-                        fun(env.clone(), &args_val)
+                        fun(&args_val)
                     }
                     // If we dont get a callable type return error
                     e => return Err(format!("{} is not callable", e.to_type()).into()),

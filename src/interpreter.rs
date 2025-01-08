@@ -6,13 +6,13 @@ use std::rc::Rc;
 
 // Main heart of the operation
 pub struct Interpreter {
-    specials: Rc<RefCell<Environment>>,
-    environments: Rc<RefCell<Environment>>,
+    pub specials: Rc<RefCell<Environment>>,
+    pub environments: Rc<RefCell<Environment>>,
 }
 
 // my STD library function
 #[allow(clippy::ptr_arg)]
-fn clock_impl(_parent_env: Rc<RefCell<Environment>>, _args: &Vec<LiteralValue>) -> LiteralValue {
+fn clock_impl(_args: &Vec<LiteralValue>) -> LiteralValue {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
         .expect("Could not get system time")
@@ -50,6 +50,15 @@ impl Interpreter {
         }
     }
 
+    pub fn for_anon(parent:Rc<RefCell<Environment>>) -> Self {
+        let environments = Rc::new(RefCell::new(Environment::new()));
+        environments.borrow_mut().enclosing = Some(parent);
+        Interpreter {
+            specials: Rc::new(RefCell::new(Environment::new())),
+            environments,
+        }
+    }
+
     #[allow(clippy::let_and_return)]
     pub fn interpret(&mut self, stmts: Vec<&Stmt>) -> Result<Option<LiteralValue>, Box<dyn Error>> {
         for stmt in stmts {
@@ -72,10 +81,11 @@ impl Interpreter {
                     let body: Vec<Box<Stmt>> = body.iter().map(|b| (*b).clone()).collect();
                     let name_clone = name.lexeme.clone();
 
+                    let parent_env = self.environments.clone();
                     // Make a function implementaion
-                    let func_impl = move |parent_env, args: &Vec<LiteralValue>| {
+                    let func_impl = move |args: &Vec<LiteralValue>| {
                         // Get the new Interpreter
-                        let mut closure_interpreter = Interpreter::for_closure(parent_env);
+                        let mut closure_interpreter = Interpreter::for_closure(parent_env.clone());
                         // Define all the parameters in the new Interpreter
                         for (i, arg) in args.iter().enumerate() {
                             closure_interpreter
