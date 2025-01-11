@@ -1,3 +1,4 @@
+use crate::expr::Expr;
 use crate::Token;
 use crate::{environments::Environment, expr::LiteralValue, stmt::Stmt};
 use std::cell::RefCell;
@@ -179,5 +180,9 @@ impl Interpreter {
             };
         }
         Ok(None)
+    }
+
+    pub fn resolve(&mut self,expr:&Expr,size:i32) -> Result<(),Box<dyn Error>> {
+        todo!()
     }
 }

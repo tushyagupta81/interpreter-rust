@@ -1,4 +1,5 @@
 mod environments;
+mod resolver;
 mod expr;
 mod interpreter;
 mod parser;
