@@ -81,14 +81,10 @@ impl Resolver {
 
     fn resolve_function(&mut self, stmt: &Stmt) -> Result<(), Box<dyn Error>> {
         match stmt {
-            Stmt::Function {
-                name,
-                params,
-                body,
-            } => {
+            Stmt::Function { name, params, body } => {
                 self.declare(name)?;
                 self.define(name)?;
-                self.resolve_function_helper(params,body)?;
+                self.resolve_function_helper(params, body)?;
             }
             _ => panic!("Wrong type in resolve function"),
         }

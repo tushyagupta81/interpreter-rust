@@ -1,3 +1,4 @@
+--- Test
 func makeCounter() {
   var i = 0;
 
@@ -16,3 +17,9 @@ counter2();
 
 counter1();
 counter2();
+
+--- Expected
+1
+1
+2
+2

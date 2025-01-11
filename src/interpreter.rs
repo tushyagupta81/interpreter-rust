@@ -51,7 +51,7 @@ impl Interpreter {
         }
     }
 
-    pub fn for_anon(parent:Rc<RefCell<Environment>>) -> Self {
+    pub fn for_anon(parent: Rc<RefCell<Environment>>) -> Self {
         let environments = Rc::new(RefCell::new(Environment::new()));
         environments.borrow_mut().enclosing = Some(parent);
         Interpreter {
@@ -70,7 +70,9 @@ impl Interpreter {
                         None => LiteralValue::Nil,
                     };
 
-                    self.specials.borrow_mut().define_top_level("return".to_string(), value);
+                    self.specials
+                        .borrow_mut()
+                        .define_top_level("return".to_string(), value);
                 }
                 // Mother of hell ah function
                 Stmt::Function { name, params, body } => {
@@ -102,9 +104,7 @@ impl Interpreter {
                                 .unwrap_or_else(|_| {
                                     panic!("Evaluvation failed inside {:?}", name_clone)
                                 });
-                            if let Some(val) =
-                                closure_interpreter.specials.borrow().get("return")
-                            {
+                            if let Some(val) = closure_interpreter.specials.borrow().get("return") {
                                 return val;
                             }
                         }
@@ -182,7 +182,7 @@ impl Interpreter {
         Ok(None)
     }
 
-    pub fn resolve(&mut self,expr:&Expr,size:i32) -> Result<(),Box<dyn Error>> {
+    pub fn resolve(&mut self, _expr: &Expr, _size: i32) -> Result<(), Box<dyn Error>> {
         todo!()
     }
 }

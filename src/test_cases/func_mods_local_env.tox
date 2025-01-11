@@ -1,3 +1,4 @@
+--- Test
 var a=2;
 
 func test() {
@@ -7,3 +8,6 @@ func test() {
 test();
 
 print a;
+
+--- Expected
+3

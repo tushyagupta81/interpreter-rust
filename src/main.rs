@@ -18,6 +18,11 @@ use std::io;
 use std::io::Write;
 use std::process::exit;
 
+fn run_string(contents: &str) -> Result<(),Box<dyn Error>> {
+    let mut interpreter = Interpreter::new();
+    run(&mut interpreter, contents)
+}
+
 // Run if file is given
 fn run_file(path: &str) -> Result<(), Box<dyn Error>> {
     let contents = fs::read_to_string(path)?;
@@ -74,6 +79,11 @@ fn main() {
             println!("Error: {}", e);
             exit(1);
         }
+    } else if args.len() == 3 && args[1] == "e" {
+        if let Err(e) = run_string(&args[2]){
+            println!("Error: {}", e);
+            exit(1);
+        };
     } else {
         println!("Usage: script");
         println!("\tOR");

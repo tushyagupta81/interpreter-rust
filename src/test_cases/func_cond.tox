@@ -1,3 +1,4 @@
+--- Test
 func con(a) {
   if (a>5) {
     return 5;
@@ -8,3 +9,7 @@ func con(a) {
 
 print con(10);
 print con(1);
+
+--- Expected
+5
+1

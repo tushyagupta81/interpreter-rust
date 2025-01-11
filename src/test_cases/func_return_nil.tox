@@ -1,5 +1,9 @@
+--- Test
 func nn() {
   return;
 }
 
 print nn();
+
+--- Expected
+nil
