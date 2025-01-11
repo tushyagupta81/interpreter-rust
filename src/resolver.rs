@@ -28,9 +28,87 @@ impl Resolver {
             } => {
                 self.resolve_var(stmt)?;
             }
-            _ => todo!(),
+            Stmt::Function {
+                name: _,
+                params: _,
+                body: _,
+            } => {
+                self.resolve_function(stmt)?;
+            }
+            Stmt::Expression { expression } => {
+                self.resolve_expr(expression)?;
+            }
+            Stmt::IfElse {
+                predicate: _,
+                then_branch: _,
+                else_branch: _,
+            } => {
+                self.resolve_if_else(stmt)?;
+            }
+            Stmt::Print { expression } => {
+                self.resolve_expr(expression)?;
+            }
+            Stmt::Return { keyword: _, value } => {
+                if let Some(val) = value {
+                    self.resolve_expr(val)?;
+                }
+            }
+            Stmt::WhileLoop { cond, body } => {
+                self.resolve_expr(cond)?;
+                self.resolve(body)?;
+            }
         }
-        todo!()
+        Ok(())
+    }
+
+    fn resolve_if_else(&mut self, stmt: &Stmt) -> Result<(), Box<dyn Error>> {
+        match stmt {
+            Stmt::IfElse {
+                predicate,
+                then_branch,
+                else_branch,
+            } => {
+                self.resolve_expr(predicate)?;
+                self.resolve(then_branch)?;
+                if let Some(els) = else_branch {
+                    self.resolve(els.as_ref())?;
+                }
+            }
+            _ => panic!("Wrong type in resolve if else"),
+        }
+        Ok(())
+    }
+
+    fn resolve_function(&mut self, stmt: &Stmt) -> Result<(), Box<dyn Error>> {
+        match stmt {
+            Stmt::Function {
+                name,
+                params,
+                body,
+            } => {
+                self.declare(name)?;
+                self.define(name)?;
+                self.resolve_function_helper(params,body)?;
+            }
+            _ => panic!("Wrong type in resolve function"),
+        }
+        Ok(())
+    }
+
+    #[allow(clippy::vec_box)]
+    fn resolve_function_helper(
+        &mut self,
+        params: &Vec<Token>,
+        body: &Vec<Box<Stmt>>,
+    ) -> Result<(), Box<dyn Error>> {
+        self.begin_scope()?;
+        for param in params {
+            self.declare(param)?;
+            self.define(param)?;
+        }
+        self.resolve_many(body)?;
+        self.end_scope()?;
+        Ok(())
     }
 
     #[allow(clippy::vec_box)]
@@ -106,7 +184,46 @@ impl Resolver {
             Expr::Assign { name: _, value: _ } => {
                 self.resolve_expr_assign(expr)?;
             }
-            _ => todo!(),
+            Expr::Binary {
+                left,
+                operator: _,
+                right,
+            } => {
+                self.resolve_expr(left)?;
+                self.resolve_expr(right)?;
+            }
+            Expr::Call {
+                callee,
+                paren: _,
+                args,
+            } => {
+                self.resolve_expr(callee)?;
+                for arg in args {
+                    self.resolve_expr(arg)?;
+                }
+            }
+            Expr::Grouping { expression } => {
+                self.resolve_expr(expression)?;
+            }
+            Expr::Literal { literal: _ } => {}
+            Expr::Logical {
+                left,
+                operator: _,
+                right,
+            } => {
+                self.resolve_expr(left)?;
+                self.resolve_expr(right)?;
+            }
+            Expr::Unary { operator: _, right } => {
+                self.resolve_expr(right)?;
+            }
+            Expr::AnonFunc {
+                paren: _,
+                args,
+                body,
+            } => {
+                self.resolve_function_helper(args, body)?;
+            }
         }
         Ok(())
     }
