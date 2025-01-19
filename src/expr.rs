@@ -1,6 +1,7 @@
 use super::scanner::Token;
+use std::hash::Hasher;
 use crate::{environments::Environment, interpreter::Interpreter, scanner, stmt::Stmt, TokenType};
-use std::{cell::RefCell, error::Error, rc::Rc};
+use std::{cell::RefCell, error::Error, hash::Hash, rc::Rc};
 
 // unwraping helper function
 fn unwrap_as_f64(literal: Option<scanner::LiteralValue>) -> f64 {
@@ -230,6 +231,22 @@ impl std::fmt::Debug for Expr {
     }
 }
 
+impl Hash for Expr {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        std::ptr::hash(self,state);
+    }
+}
+
+impl PartialEq for Expr {
+    fn eq(&self, other: &Self) -> bool {
+        let ptr1 = std::ptr::addr_of!(self);
+        let ptr2 = std::ptr::addr_of!(other);
+        ptr1 == ptr2
+    }
+}
+
+impl Eq for Expr {}
+
 #[allow(clippy::inherent_to_string)]
 impl Expr {
     pub fn to_string(&self) -> String {
@@ -296,11 +313,7 @@ impl Expr {
     pub fn evaluvate(&self, env: Rc<RefCell<Environment>>) -> Result<LiteralValue, Box<dyn Error>> {
         // Result is stored in res and returned as Ok(res) at end
         let res = match self {
-            Expr::AnonFunc {
-                paren,
-                args,
-                body,
-            } => {
+            Expr::AnonFunc { paren, args, body } => {
                 // Clone all params to prevent lifetime issues
                 let arguments: Vec<Token> = args.iter().map(|t| (*t).clone()).collect();
                 let body: Vec<Box<Stmt>> = body.iter().map(|b| (*b).clone()).collect();
@@ -319,12 +332,14 @@ impl Expr {
                     // Resolve the n-1 line in the body
                     #[allow(clippy::all)]
                     for i in 0..(body.len()) {
-                        anon_env.interpret(vec![body[i].as_ref()]).unwrap_or_else(|_| {
-                            panic!(
-                                "Evaluvation failed inside anon_func at line {}",
-                                paren_line.clone()
-                            )
-                        });
+                        anon_env
+                            .interpret(vec![body[i].as_ref()])
+                            .unwrap_or_else(|_| {
+                                panic!(
+                                    "Evaluvation failed inside anon_func at line {}",
+                                    paren_line.clone()
+                                )
+                            });
                         if let Some(val) = anon_env.specials.borrow().get("return") {
                             return val;
                         }
@@ -515,7 +530,7 @@ impl Expr {
 
 #[cfg(test)]
 mod tests {
-    use std::usize;
+    use std::{collections::HashMap, usize};
 
     use super::*;
     use crate::scanner::TokenType;
@@ -555,5 +570,87 @@ mod tests {
 
         ast.print();
         assert_eq!(ast.to_string(), "(* (- 123) (group 45.67))".to_string());
+    }
+
+    #[test]
+    fn expr_traits() {
+        let mut hm = HashMap::new();
+
+        let minus_token = Token {
+            token_type: TokenType::Minus,
+            lexeme: "-".to_string(),
+            literal: None,
+            line_number: 1 as usize,
+        };
+
+        let onetwothree = Box::new(Expr::Literal {
+            literal: LiteralValue::Number(123.0),
+        });
+        let multi = Token {
+            token_type: TokenType::Star,
+            lexeme: "*".to_string(),
+            literal: None,
+            line_number: 1 as usize,
+        };
+        let group = Box::new(Expr::Grouping {
+            expression: Box::new(Expr::Literal {
+                literal: LiteralValue::Number(45.67),
+            }),
+        });
+
+        let ast = Expr::Binary {
+            left: Box::new(Expr::Unary {
+                operator: minus_token,
+                right: onetwothree,
+            }),
+            operator: multi,
+            right: group,
+        };
+
+        let ast = std::rc::Rc::new(ast);
+        hm.insert(ast.clone(), 2);
+        match hm.get(&ast) {
+            Some(_) => (),
+            None => panic!("Should be able to get the value in trait expr")
+        }
+
+
+        let minus_token = Token {
+            token_type: TokenType::Minus,
+            lexeme: "-".to_string(),
+            literal: None,
+            line_number: 1 as usize,
+        };
+
+        let onetwothree = Box::new(Expr::Literal {
+            literal: LiteralValue::Number(123.0),
+        });
+        let multi = Token {
+            token_type: TokenType::Star,
+            lexeme: "*".to_string(),
+            literal: None,
+            line_number: 1 as usize,
+        };
+        let group = Box::new(Expr::Grouping {
+            expression: Box::new(Expr::Literal {
+                literal: LiteralValue::Number(45.67),
+            }),
+        });
+
+        let ast = Expr::Binary {
+            left: Box::new(Expr::Unary {
+                operator: minus_token,
+                right: onetwothree,
+            }),
+            operator: multi,
+            right: group,
+        };
+
+        let ast = std::rc::Rc::new(ast);
+        match hm.get(&ast){
+            None => (),
+            Some(_) => panic!("Should get None in expr traits"),
+        }
+
     }
 }

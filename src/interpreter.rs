@@ -2,6 +2,7 @@ use crate::expr::Expr;
 use crate::Token;
 use crate::{environments::Environment, expr::LiteralValue, stmt::Stmt};
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::error::Error;
 use std::rc::Rc;
 
@@ -9,35 +10,18 @@ use std::rc::Rc;
 pub struct Interpreter {
     pub specials: Rc<RefCell<Environment>>,
     pub environments: Rc<RefCell<Environment>>,
-}
-
-// my STD library function
-#[allow(clippy::ptr_arg)]
-fn clock_impl(_args: &Vec<LiteralValue>) -> LiteralValue {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-        .expect("Could not get system time")
-        .as_millis();
-
-    LiteralValue::Number(now as f64 / 1000.0)
+    // globals: HashMap<String, LiteralValue>,
+    pub locals: Rc<RefCell<HashMap<usize, usize>>>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         // Define the STD lib functions on startup
-        let mut env = Environment::new();
-        env.define(
-            "clock".to_string(),
-            LiteralValue::Callable {
-                name: "clock".to_string(),
-                arity: 0,
-                fun: Rc::from(clock_impl),
-            },
-        );
         Self {
             specials: Rc::new(RefCell::new(Environment::new())),
-            //environments: Rc::new(RefCell::new(Environment::new())),
-            environments: Rc::new(RefCell::new(env)),
+            environments: Rc::new(RefCell::new(Environment::new())),
+            // globals: Interpreter::get_globals(),
+            locals: Rc::new(RefCell::new(HashMap::new())),
         }
     }
 
@@ -48,6 +32,8 @@ impl Interpreter {
         Interpreter {
             specials: Rc::new(RefCell::new(Environment::new())),
             environments,
+            // globals: Interpreter::get_globals(),
+            locals: Rc::new(RefCell::new(HashMap::new())),
         }
     }
 
@@ -57,6 +43,8 @@ impl Interpreter {
         Interpreter {
             specials: Rc::new(RefCell::new(Environment::new())),
             environments,
+            // globals: Interpreter::get_globals(),
+            locals: Rc::new(RefCell::new(HashMap::new())),
         }
     }
 
@@ -133,6 +121,7 @@ impl Interpreter {
                 }
                 // Execute a expresssion regularly
                 Stmt::Expression { expression } => {
+                    let distance = self.get_distance(&expression);
                     expression.evaluvate(self.environments.clone())?;
                 }
                 // Evaluvate the value and then print it out
@@ -182,7 +171,14 @@ impl Interpreter {
         Ok(None)
     }
 
-    pub fn resolve(&mut self, _expr: &Expr, _size: i32) -> Result<(), Box<dyn Error>> {
-        todo!()
+    pub fn resolve(&mut self, expr: &Expr, size: usize) -> Result<(), Box<dyn Error>> {
+        let addr = std::ptr::addr_of!(expr) as usize;
+        self.locals.borrow_mut().insert(addr, size);
+        Ok(())
+    }
+
+    fn get_distance(&self, expr: &Expr) -> Option<usize> {
+        let addr = std::ptr::addr_of!(expr) as usize;
+        self.locals.borrow().get(&addr).copied()
     }
 }

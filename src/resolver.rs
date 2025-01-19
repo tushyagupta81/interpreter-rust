@@ -259,8 +259,7 @@ impl Resolver {
         let size = self.scopes.len();
         for i in (size - 1)..0 {
             if self.scopes[i].contains_key(&name.lexeme) {
-                self.interpreter
-                    .resolve(expr, (size as i32) - 1 - (i as i32))?;
+                self.interpreter.resolve(expr, size - 1 - i)?;
                 return Ok(());
             }
         }

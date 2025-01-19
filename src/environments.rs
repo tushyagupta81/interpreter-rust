@@ -9,10 +9,33 @@ pub struct Environment {
     pub enclosing: Option<Rc<RefCell<Environment>>>,
 }
 
+#[allow(clippy::ptr_arg)]
+fn clock_impl(_args: &Vec<LiteralValue>) -> LiteralValue {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .expect("Could not get system time")
+        .as_millis();
+    LiteralValue::Number(now as f64 / 1000.0)
+}
+
+fn get_globals() -> HashMap<String, LiteralValue> {
+    let mut env = HashMap::new();
+    env.insert(
+        "clock".to_string(),
+        LiteralValue::Callable {
+            name: "clock".to_string(),
+            arity: 0,
+            fun: Rc::new(clock_impl),
+        },
+    );
+    env
+}
+
 impl Environment {
     pub fn new() -> Self {
         Environment {
-            values: HashMap::<String, LiteralValue>::new(),
+            // values: HashMap::<String, LiteralValue>::new(),
+            values: get_globals(),
             enclosing: None,
         }
     }
