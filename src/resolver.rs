@@ -2,22 +2,24 @@ use std::{collections::HashMap, error::Error};
 
 use crate::{expr::Expr, interpreter::Interpreter, stmt::Stmt, Token};
 
+use std::cell::RefCell;
+use std::rc::Rc;
 #[allow(dead_code)]
 pub struct Resolver {
-    interpreter: Interpreter,
+    pub interpreter: Rc<RefCell<Interpreter>>,
     scopes: Vec<HashMap<String, bool>>,
 }
 
 #[allow(dead_code)]
 impl Resolver {
-    pub fn new() -> Self {
+    pub fn new(interpreter: Rc<RefCell<Interpreter>>) -> Self {
         Resolver {
-            interpreter: Interpreter::new(),
+            interpreter,
             scopes: vec![],
         }
     }
 
-    pub fn resolve(&mut self, stmt: &Stmt) -> Result<(), Box<dyn Error>> {
+    fn resolve(&mut self, stmt: &Stmt) -> Result<(), Box<dyn Error>> {
         match stmt {
             Stmt::Block { stmts: _ } => {
                 self.resolve_block(stmt)?;
@@ -84,7 +86,7 @@ impl Resolver {
             Stmt::Function { name, params, body } => {
                 self.declare(name)?;
                 self.define(name)?;
-                self.resolve_function_helper(params, body)?;
+                self.resolve_function_helper(params, &body.iter().map(|b| b.as_ref()).collect())?;
             }
             _ => panic!("Wrong type in resolve function"),
         }
@@ -95,7 +97,7 @@ impl Resolver {
     fn resolve_function_helper(
         &mut self,
         params: &Vec<Token>,
-        body: &Vec<Box<Stmt>>,
+        body: &Vec<&Stmt>,
     ) -> Result<(), Box<dyn Error>> {
         self.begin_scope()?;
         for param in params {
@@ -108,9 +110,9 @@ impl Resolver {
     }
 
     #[allow(clippy::vec_box)]
-    fn resolve_many(&mut self, stmts: &Vec<Box<Stmt>>) -> Result<(), Box<dyn Error>> {
+    pub fn resolve_many(&mut self, stmts: &Vec<&Stmt>) -> Result<(), Box<dyn Error>> {
         for stmt in stmts {
-            self.resolve(stmt.as_ref())?;
+            self.resolve(stmt)?;
         }
         Ok(())
     }
@@ -154,7 +156,7 @@ impl Resolver {
         match stmt {
             Stmt::Block { stmts } => {
                 self.begin_scope()?;
-                self.resolve_many(stmts)?;
+                self.resolve_many(&stmts.iter().map(|b| b.as_ref()).collect())?;
                 self.end_scope()?;
             }
             _ => panic!("Wrong tpye in resolve block"),
@@ -218,7 +220,7 @@ impl Resolver {
                 args,
                 body,
             } => {
-                self.resolve_function_helper(args, body)?;
+                self.resolve_function_helper(args, &body.iter().map(|b| b.as_ref()).collect())?;
             }
         }
         Ok(())
@@ -257,10 +259,16 @@ impl Resolver {
 
     fn resolve_local(&mut self, expr: &Expr, name: &Token) -> Result<(), Box<dyn Error>> {
         let size = self.scopes.len();
-        for i in (size - 1)..0 {
-            if self.scopes[i].contains_key(&name.lexeme) {
-                self.interpreter.resolve(expr, size - 1 - i)?;
-                return Ok(());
+        if size==0 {
+            return Ok(());
+        }
+        if size != 0 {
+            for i in (0..(size - 1)).rev() {
+                if self.scopes[i].contains_key(&name.lexeme) {
+                    self.interpreter.borrow_mut().resolve(expr, size - 1 - i)?;
+                    // (self.resolve_impl)(expr,size-1-i)?;
+                    return Ok(());
+                }
             }
         }
         Ok(())

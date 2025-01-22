@@ -7,6 +7,7 @@ pub struct Environment {
     values: HashMap<String, LiteralValue>,
     // Enclosing is the parent Environment to the current Environment
     pub enclosing: Option<Rc<RefCell<Environment>>>,
+    globals: HashMap<String, LiteralValue>,
 }
 
 #[allow(clippy::ptr_arg)]
@@ -34,50 +35,63 @@ fn get_globals() -> HashMap<String, LiteralValue> {
 impl Environment {
     pub fn new() -> Self {
         Environment {
-            // values: HashMap::<String, LiteralValue>::new(),
-            values: get_globals(),
+            values: HashMap::<String, LiteralValue>::new(),
+            globals: get_globals(),
             enclosing: None,
         }
     }
 
     // create a new variable or override a existing variable of same name
-    pub fn define(&mut self, name: String, value: LiteralValue) {
-        self.values.insert(name, value);
-    }
-
-    pub fn define_top_level(&mut self, name: String, value: LiteralValue) {
-        match &self.enclosing {
-            None => self.define(name, value),
-            Some(env) => env.borrow_mut().define_top_level(name, value),
+    pub fn define(&mut self, name: String, value: LiteralValue, distance: Option<usize>) {
+        if distance.is_none() {
+            self.globals.insert(name, value);
+        } else {
+            let distance = distance.unwrap();
+            if distance == 0 {
+                self.values.insert(name, value);
+            } else {
+                self.define(name, value, Some(distance - 1));
+            }
         }
     }
 
     // Assign a value to a already existing variable
-    pub fn assign(&mut self, name: &str, value: LiteralValue) -> bool {
-        let old_value = self.values.get(name);
-
-        match (old_value, &self.enclosing) {
-            // Check if variable exists in current Environment
-            (Some(_), _) => {
-                self.values.insert(name.to_string(), value);
+    pub fn assign(&mut self, name: &str, value: LiteralValue, distance: Option<usize>) -> bool {
+        if distance.is_none() {
+            self.globals.insert(name.to_string(), value);
+            true
+        } else {
+            let distance = distance.unwrap();
+            if distance == 0 {
+                self.values.insert(name.to_string(), value.clone());
                 true
+            } else {
+                match &self.enclosing {
+                    None => panic!(
+                        "Tried to assign a var that was defined deeper than the current env depth"
+                    ),
+                    Some(env) => return env.borrow_mut().assign(name, value, Some(distance - 1)),
+                }
             }
-            // Check if variable exists in parent Environment recurcively
-            (None, Some(env)) => env.borrow_mut().assign(name, value),
-            // Variable was never declared
-            (None, None) => false,
         }
     }
 
     // Get the value of a variable
-    pub fn get(&self, name: &str) -> Option<LiteralValue> {
-        let val = self.values.get(name);
-
-        // Get the value of a variable even if it was declared in parent Environments
-        match (val, &self.enclosing) {
-            (Some(v), _) => Some(v.clone()),
-            (None, Some(env)) => env.borrow().get(name),
-            (None, None) => None,
+    pub fn get(&self, name: &str, distance: Option<usize>) -> Option<LiteralValue> {
+        if distance.is_none() {
+            self.globals.get(name).cloned()
+        } else {
+            let distance = distance.unwrap();
+            if distance == 0 {
+                self.values.get(name).cloned()
+            } else {
+                match &self.enclosing {
+                    None => panic!(
+                        "Tried to resolve a var that was defined deeper than the current env depth"
+                    ),
+                    Some(env) => env.borrow().get(name, Some(distance - 1)),
+                }
+            }
         }
     }
 }

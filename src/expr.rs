@@ -1,6 +1,6 @@
 use super::scanner::Token;
-use std::hash::Hasher;
 use crate::{environments::Environment, interpreter::Interpreter, scanner, stmt::Stmt, TokenType};
+use std::hash::Hasher;
 use std::{cell::RefCell, error::Error, hash::Hash, rc::Rc};
 
 // unwraping helper function
@@ -233,7 +233,7 @@ impl std::fmt::Debug for Expr {
 
 impl Hash for Expr {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        std::ptr::hash(self,state);
+        std::ptr::hash(self, state);
     }
 }
 
@@ -310,7 +310,11 @@ impl Expr {
     }
 
     // Evaluvate a Expression and return a LiteralValue
-    pub fn evaluvate(&self, env: Rc<RefCell<Environment>>) -> Result<LiteralValue, Box<dyn Error>> {
+    pub fn evaluvate(
+        &self,
+        env: Rc<RefCell<Environment>>,
+        distance: Option<usize>,
+    ) -> Result<LiteralValue, Box<dyn Error>> {
         // Result is stored in res and returned as Ok(res) at end
         let res = match self {
             Expr::AnonFunc { paren, args, body } => {
@@ -327,7 +331,7 @@ impl Expr {
                         anon_env
                             .environments
                             .borrow_mut()
-                            .define(arguments[i].lexeme.clone(), arg.clone());
+                            .define(arguments[i].lexeme.clone(), arg.clone(),Some(0));
                     }
                     // Resolve the n-1 line in the body
                     #[allow(clippy::all)]
@@ -340,8 +344,8 @@ impl Expr {
                                     paren_line.clone()
                                 )
                             });
-                        if let Some(val) = anon_env.specials.borrow().get("return") {
-                            return val;
+                        if let Some(val) = anon_env.specials.borrow_mut().get("return") {
+                            return val.clone();
                         }
                     }
                     LiteralValue::Nil
@@ -354,7 +358,7 @@ impl Expr {
                 }
             }
             // If its a Variable Expression we try to get it and return its value
-            Expr::Variable { name } => match env.borrow().get(&name.lexeme) {
+            Expr::Variable { name } => match env.borrow().get(&name.lexeme, distance) {
                 Some(val) => val.clone(),
                 None => return Err(format!("Variable '{}' is not defined", name.lexeme).into()),
             },
@@ -365,7 +369,7 @@ impl Expr {
                 args,
             } => {
                 // First evaluvate the callee to get the invoking function defination
-                let callable = callee.evaluvate(env.clone())?;
+                let callable = callee.evaluvate(env.clone(), distance)?;
                 match callable {
                     // Check if function defination matchs its invokation
                     LiteralValue::Callable { name, arity, fun } => {
@@ -382,7 +386,7 @@ impl Expr {
                         // Eval the args to literalvalue
                         let mut args_val = vec![];
                         for arg in args {
-                            args_val.push(arg.evaluvate(env.clone())?)
+                            args_val.push(arg.evaluvate(env.clone(), distance)?)
                         }
                         // Call the fun with the args
                         fun(&args_val)
@@ -393,8 +397,10 @@ impl Expr {
             }
             // Assign a new value to a variable
             Expr::Assign { name, value } => {
-                let new_value = (*value).evaluvate(env.clone())?;
-                let assign_success = env.borrow_mut().assign(&name.lexeme, new_value.clone());
+                let new_value = (*value).evaluvate(env.clone(), distance)?;
+                let assign_success =
+                    env.borrow_mut()
+                        .assign(&name.lexeme, new_value.clone(), distance);
 
                 // If assignment is success return the value
                 if assign_success {
@@ -410,7 +416,7 @@ impl Expr {
                 right,
             } => {
                 // Get the lhs eq
-                let lhs_expr = left.evaluvate(env.clone())?;
+                let lhs_expr = left.evaluvate(env.clone(), distance)?;
 
                 if operator.token_type == TokenType::Or {
                     // If the operator is or and the LHS is true return it and dont compute RHS
@@ -422,14 +428,14 @@ impl Expr {
                     return Ok(lhs_expr);
                 }
                 // Otherwise return RHS
-                let rhs_expr = right.evaluvate(env.clone())?;
+                let rhs_expr = right.evaluvate(env.clone(), distance)?;
                 return Ok(rhs_expr);
             }
             Expr::Literal { literal } => literal.clone(),
-            Expr::Grouping { expression } => expression.evaluvate(env)?,
+            Expr::Grouping { expression } => expression.evaluvate(env, distance)?,
             Expr::Unary { operator, right } => {
                 // Get the RHS
-                let right = &right.evaluvate(env)?;
+                let right = &right.evaluvate(env, distance)?;
                 // Match the operation with the evaluvated expression
                 match (right, &operator.token_type) {
                     (LiteralValue::Number(n), TokenType::Minus) => LiteralValue::Number(-n),
@@ -449,8 +455,8 @@ impl Expr {
                 operator,
                 right,
             } => {
-                let left = &left.evaluvate(env.clone())?;
-                let right = &right.evaluvate(env.clone())?;
+                let left = &left.evaluvate(env.clone(), distance)?;
+                let right = &right.evaluvate(env.clone(), distance)?;
                 // Long match list of all possible(yet) binary operations
                 match (left, right, &operator.token_type) {
                     (LiteralValue::Number(a), LiteralValue::Number(b), TokenType::Greater) => {
@@ -611,9 +617,8 @@ mod tests {
         hm.insert(ast.clone(), 2);
         match hm.get(&ast) {
             Some(_) => (),
-            None => panic!("Should be able to get the value in trait expr")
+            None => panic!("Should be able to get the value in trait expr"),
         }
-
 
         let minus_token = Token {
             token_type: TokenType::Minus,
@@ -647,10 +652,9 @@ mod tests {
         };
 
         let ast = std::rc::Rc::new(ast);
-        match hm.get(&ast){
+        match hm.get(&ast) {
             None => (),
             Some(_) => panic!("Should get None in expr traits"),
         }
-
     }
 }
